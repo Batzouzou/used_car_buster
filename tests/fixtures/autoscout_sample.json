@@ -1,0 +1,44 @@
+{
+  "props": {
+    "pageProps": {
+      "listings": [
+        {
+          "id": "abc123",
+          "title": "Toyota iQ 1.33 Dual VVT-i CVT",
+          "price": 3500,
+          "mileage": 85000,
+          "firstRegistration": "01/2011",
+          "fuelType": "Essence",
+          "gearType": "Automatique",
+          "sellerType": "D",
+          "location": {
+            "city": "Paris",
+            "countryCode": "FR",
+            "latitude": 48.8566,
+            "longitude": 2.3522
+          },
+          "images": ["https://img.autoscout24.fr/photo1.jpg"],
+          "url": "/annonce/toyota-iq-abc123"
+        },
+        {
+          "id": "def456",
+          "title": "Toyota iQ 1.0 VVTi Automatique",
+          "price": 2900,
+          "mileage": 110000,
+          "firstRegistration": "06/2009",
+          "fuelType": "Essence",
+          "gearType": "Automatique",
+          "sellerType": "P",
+          "location": {
+            "city": "Lyon",
+            "countryCode": "FR",
+            "latitude": 45.7640,
+            "longitude": 4.8357
+          },
+          "images": ["https://img.autoscout24.fr/photo2.jpg"],
+          "url": "/annonce/toyota-iq-def456"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "ads": [
+    {
+      "list_id": 12345,
+      "subject": "Toyota iQ 1.33 CVT Automatique",
+      "price": [3200],
+      "attributes": [
+        {"key": "mileage", "value": "78000"},
+        {"key": "regdate", "value": "2011"},
+        {"key": "fuel", "value": "1"},
+        {"key": "gearbox", "value": "2"}
+      ],
+      "location": {
+        "city": "Vitry-sur-Seine",
+        "department_id": "94",
+        "lat": 48.787,
+        "lng": 2.392
+      },
+      "owner": {"type": "pro", "name": "Garage Central"},
+      "url": "https://www.leboncoin.fr/voitures/12345.htm",
+      "body": "Toyota iQ automatique, bon etat, CT OK",
+      "images": {"urls": ["https://img.lbc.fr/1.jpg"]}
+    },
+    {
+      "list_id": 67890,
+      "subject": "Toyota IQ Manuelle",
+      "price": [2500],
+      "attributes": [
+        {"key": "mileage", "value": "95000"},
+        {"key": "regdate", "value": "2010"},
+        {"key": "gearbox", "value": "1"}
+      ],
+      "location": {
+        "city": "Paris",
+        "department_id": "75",
+        "lat": 48.856,
+        "lng": 2.352
+      },
+      "owner": {"type": "private"},
+      "url": "https://www.leboncoin.fr/voitures/67890.htm",
+      "body": "Vends iQ manuelle",
+      "images": {"urls": []}
+    }
+  ],
+  "total": 2
+}

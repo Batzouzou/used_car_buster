@@ -1,0 +1,8 @@
+.env
+_IQ/
+__pycache__/
+*.pyc
+*.pdf
+.pytest_cache/
+.coverage
+.claude/

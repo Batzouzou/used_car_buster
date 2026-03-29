@@ -24,26 +24,103 @@ AS_SEARCH_URL = "https://www.autoscout24.fr/lst/toyota/iq"
 
 
 def _extract_year(first_reg: str) -> int:
-    """Extract year from firstRegistration like '01/2011' or '2011'."""
+    """Extract year from firstRegistration like '01/2011', '10-2009', or '2011'."""
     match = re.search(r"(20\d{2}|19\d{2})", first_reg or "")
     return int(match.group(1)) if match else 2009
 
 
+def _extract_price(price_raw) -> int:
+    """Extract price int from old format (int) or new format (dict)."""
+    if isinstance(price_raw, (int, float)):
+        return int(price_raw)
+    if isinstance(price_raw, dict):
+        # New format: try tracking.price first (clean int string), else parse formatted
+        formatted = price_raw.get("priceFormatted", "")
+        digits = re.sub(r"[^\d]", "", formatted)
+        return int(digits) if digits else 0
+    return int(price_raw) if price_raw else 0
+
+
+def _extract_mileage(item: dict) -> int | None:
+    """Extract mileage from old format (top-level int) or new format (vehicle.mileageInKm)."""
+    # Old format: item["mileage"] is an int
+    mileage_raw = item.get("mileage")
+    if isinstance(mileage_raw, (int, float)):
+        return int(mileage_raw)
+    # New format: vehicle.mileageInKm is a string like "46 000 km"
+    vehicle = item.get("vehicle", {})
+    mileage_str = vehicle.get("mileageInKm", "")
+    if mileage_str:
+        digits = re.sub(r"[^\d]", "", mileage_str)
+        return int(digits) if digits else None
+    # Fallback: tracking.mileage as clean int string
+    tracking = item.get("tracking", {})
+    track_km = tracking.get("mileage")
+    if track_km:
+        return int(track_km)
+    return None
+
+
+def _extract_transmission(item: dict) -> str | None:
+    """Extract transmission from old or new format."""
+    # Old format: item["gearType"]
+    gear = item.get("gearType", "")
+    if not gear:
+        # New format: vehicle.transmission
+        vehicle = item.get("vehicle", {})
+        gear = vehicle.get("transmission", "")
+    gear_lower = gear.lower()
+    if "auto" in gear_lower:
+        return "auto"
+    if "manuel" in gear_lower or "manual" in gear_lower:
+        return "manual"
+    return None if not gear_lower else None
+
+
+def _extract_seller_type(item: dict) -> str:
+    """Extract seller type from old or new format."""
+    # Old format: sellerType = "D" or "P"
+    seller_raw = item.get("sellerType", "")
+    if seller_raw == "D":
+        return "pro"
+    if seller_raw == "P":
+        return "private"
+    # New format: seller.type = "Dealer" or "Private"
+    seller = item.get("seller", {})
+    seller_type = seller.get("type", "")
+    if seller_type.lower() == "dealer":
+        return "pro"
+    return "private"
+
+
+def _extract_title(item: dict) -> str:
+    """Extract title from old or new format."""
+    title = item.get("title", "")
+    if not title:
+        vehicle = item.get("vehicle", {})
+        title = vehicle.get("subtitle") or f"{vehicle.get('make', '')} {vehicle.get('model', '')}".strip()
+    return title
+
+
 def parse_autoscout_listings(listings_data: list[dict]) -> list[RawListing]:
-    """Parse AutoScout24 listing objects into RawListing models."""
+    """Parse AutoScout24 listing objects into RawListing models.
+
+    Supports both old format (flat keys) and new 2026 format (nested vehicle/seller/tracking).
+    """
     listings = []
     now = datetime.now(timezone.utc).isoformat()
 
     for item in listings_data:
         try:
             location = item.get("location", {})
+            tracking = item.get("tracking", {})
 
-            gear = (item.get("gearType") or "").lower()
-            transmission = "auto" if "auto" in gear else ("manual" if gear else None)
+            # Year: old firstRegistration at top level, new in tracking
+            first_reg = item.get("firstRegistration") or tracking.get("firstRegistration", "")
 
-            # D = dealer (pro), P = private
-            seller_raw = item.get("sellerType", "")
-            seller_type = "pro" if seller_raw == "D" else "private"
+            # Fuel: old fuelType at top level, new in vehicle
+            vehicle = item.get("vehicle", {})
+            fuel = item.get("fuelType") or vehicle.get("fuel")
 
             url = item.get("url", "")
             if url and not url.startswith("http"):
@@ -52,17 +129,17 @@ def parse_autoscout_listings(listings_data: list[dict]) -> list[RawListing]:
             listing = RawListing(
                 id=f"as_{item['id']}",
                 platform="autoscout24",
-                title=item.get("title", ""),
-                price=int(item.get("price", 0)),
-                year=_extract_year(item.get("firstRegistration")),
-                mileage_km=int(item["mileage"]) if item.get("mileage") else None,
-                transmission=transmission,
-                fuel=item.get("fuelType"),
+                title=_extract_title(item),
+                price=_extract_price(item.get("price", 0)),
+                year=_extract_year(first_reg),
+                mileage_km=_extract_mileage(item),
+                transmission=_extract_transmission(item),
+                fuel=fuel,
                 city=location.get("city"),
                 department=None,
                 lat=location.get("latitude"),
                 lon=location.get("longitude"),
-                seller_type=seller_type,
+                seller_type=_extract_seller_type(item),
                 url=url,
                 description=None,
                 images=item.get("images", []),

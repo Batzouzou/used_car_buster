@@ -107,9 +107,9 @@ async def test_cmd_demarrer():
     update.message.reply_text = AsyncMock()
     context = MagicMock()
     await cmd_demarrer(update, context)
-    update.message.reply_text.assert_called_once()
-    text = update.message.reply_text.call_args[0][0]
-    assert "Toyota iQ" in text
+    assert update.message.reply_text.call_count == 2  # welcome + cheatsheet
+    text = update.message.reply_text.call_args_list[0][0][0]
+    assert "iQ" in text
 
 
 @pytest.mark.asyncio
@@ -306,7 +306,7 @@ async def test_cmd_intervalle_no_args():
     context.args = []
     await cmd_intervalle(update, context)
     text = update.message.reply_text.call_args[0][0]
-    assert "frequence" in text.lower()
+    assert "recherche" in text.lower()
 
 
 @pytest.mark.asyncio
@@ -458,9 +458,9 @@ async def test_notifier_notify_shortlist_filters_by_score():
         _make_scored(id="lbc_low", score=30, images=["https://img.lbc.fr/2.jpg"]),
     ]
     await notifier.notify_shortlist(listings)
-    # Header + 1 high-score listing (send_photo), score=30 filtered out
-    assert notifier.bot.send_message.call_count == 1  # header
-    assert notifier.bot.send_photo.call_count == 1    # only the 85-score one
+    # Header to both (2x send_message) + 1 high-score listing to both (2x send_photo)
+    assert notifier.bot.send_message.call_count == 2  # header to friend + jerome
+    assert notifier.bot.send_photo.call_count == 2    # listing to friend + jerome
 
 
 @pytest.mark.asyncio

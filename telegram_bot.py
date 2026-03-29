@@ -7,7 +7,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from telegram import Update, Bot, InputMediaPhoto
+from telegram import Update, Bot, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
 from config import (
@@ -183,14 +183,26 @@ class TelegramNotifier:
             return
         caption = format_listing_notification(listing, number)
         photo_url = listing.images[0] if listing.images else None
+        phone = getattr(listing, "seller_phone", None)
+
+        # Build inline keyboard buttons
+        buttons = []
+        buttons.append([InlineKeyboardButton("🔗 Voir l'annonce", url=listing.url)])
+        if phone:
+            buttons.append([InlineKeyboardButton(f"📞 Appeler {phone}", url=f"tel:{phone}")])
+        keyboard = InlineKeyboardMarkup(buttons)
 
         try:
             if photo_url:
                 msg = await self.bot.send_photo(
                     chat_id=chat_id, photo=photo_url, caption=caption,
+                    reply_markup=keyboard,
                 )
             else:
-                msg = await self.bot.send_message(chat_id=chat_id, text=caption)
+                msg = await self.bot.send_message(
+                    chat_id=chat_id, text=caption,
+                    reply_markup=keyboard,
+                )
             self._track(chat_id, msg)
         except Exception as e:
             logger.error(f"Echec envoi listing {listing.id}: {e}")

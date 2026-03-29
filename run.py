@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from config import OUTPUT_DIR
+from config import MONITOR_PORT, OUTPUT_DIR
 
 logging.basicConfig(
     level=logging.INFO,
@@ -71,6 +71,7 @@ def main(argv: list[str] | None = None):
 
     if command == "run":
         from agent_supervisor import SupervisorAgent
+        from monitor import start_monitor_thread
         from scheduler import PipelineScheduler
         from telegram_bot import build_application
 
@@ -80,6 +81,9 @@ def main(argv: list[str] | None = None):
         def run_pipeline():
             agent = SupervisorAgent()
             agent.run()
+
+        # Start monitor dashboard (daemon thread)
+        start_monitor_thread(port=MONITOR_PORT)
 
         # Start scheduler
         scheduler = PipelineScheduler(run_pipeline_fn=run_pipeline)

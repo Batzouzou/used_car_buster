@@ -58,5 +58,8 @@ DEFAULT_INTERVAL_HOURS = 4
 MIN_INTERVAL_HOURS = 1
 MAX_INTERVAL_HOURS = 168  # 1 week
 
+# --- Monitor ---
+MONITOR_PORT = int(os.getenv("MONITOR_PORT", "5050"))
+
 # --- Output directory ---
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "_IQ")

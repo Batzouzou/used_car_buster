@@ -131,7 +131,7 @@ def test_main_price_with_files(capsys, tmp_path):
         "score_breakdown": {"price": 20, "mileage": 15, "year": 10, "proximity": 8, "condition": 10, "transmission": 10},
         "red_flags": [], "highlights": [], "concerns": [], "summary_fr": "OK",
     }]
-    shortlist_file = tmp_path / "shortlist_approved_20260328.json"
+    shortlist_file = tmp_path / "approved_20260328.json"
     shortlist_file.write_text(json.dumps(listing_data), encoding="utf-8")
 
     with patch("run.OUTPUT_DIR", str(tmp_path)), \

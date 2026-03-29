@@ -39,6 +39,10 @@ def _get_session() -> requests.Session:
         "User-Agent": random.choice(USER_AGENTS),
         "Accept": "application/json",
         "Accept-Language": "fr-FR,fr;q=0.9",
+        "Content-Type": "application/json",
+        "Origin": "https://www.leboncoin.fr",
+        "Referer": "https://www.leboncoin.fr/",
+        "api_key": "ba0c2dad52b3ec",
     })
     return session
 
@@ -105,7 +109,7 @@ def scrape_leboncoin() -> list[RawListing]:
         params = _build_lbc_params()
         time.sleep(random.uniform(2, 5))
 
-        resp = session.get(LBC_API_URL, params=params, timeout=30)
+        resp = session.post(LBC_API_URL, json=params, timeout=30)
         resp.raise_for_status()
         data = resp.json()
 
@@ -118,7 +122,7 @@ def scrape_leboncoin() -> list[RawListing]:
         while offset < total:
             time.sleep(random.uniform(2, 5))
             params["offset"] = offset
-            resp = session.get(LBC_API_URL, params=params, timeout=30)
+            resp = session.post(LBC_API_URL, json=params, timeout=30)
             resp.raise_for_status()
             page_data = resp.json()
             page_ads = page_data.get("ads", [])

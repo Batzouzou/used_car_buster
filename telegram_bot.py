@@ -205,8 +205,8 @@ async def cmd_statut(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     from pathlib import Path
     state = load_state(str(Path(OUTPUT_DIR) / "state.json"))
     step_fr = {
-        "init": "initial", "scrape": "scrape", "analyze": "analyse",
-        "hitl": "validation", "price": "pricing", "done": "termine",
+        "init": "initial", "scraped": "scrape termine", "analyzed": "analyse terminee",
+        "hitl": "validation", "priced": "pricing termine", "done": "termine",
     }.get(state.step, state.step)
     status_fr = {"pending": "en attente", "done": "termine", "running": "en cours", "failed": "echoue"}
     await update.message.reply_text(

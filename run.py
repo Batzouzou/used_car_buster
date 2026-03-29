@@ -313,6 +313,23 @@ def main(argv: list[str] | None = None):
                 print(f"  Offre: {p.opening_offer} EUR | Max: {p.max_acceptable} EUR")
                 print(f"  Ancres: {', '.join(p.anchors[:2])}")
 
+    elif command == "notify":
+        import asyncio
+        from models import ScoredListing
+        from telegram_bot import TelegramNotifier
+
+        files = sorted(Path(OUTPUT_DIR).glob("approved_*.json"), reverse=True)
+        if not files:
+            print("No approved shortlist. Run 'analyze' first.")
+            return
+        data = json.loads(files[0].read_text(encoding="utf-8"))
+        listings = [ScoredListing.model_validate(d) for d in data]
+        print(f"Loaded {len(listings)} from {files[0].name}")
+
+        notifier = TelegramNotifier()
+        asyncio.run(notifier.notify_shortlist(listings))
+        print("Sent to Telegram.")
+
     elif command == "status":
         from state import load_state
         state = load_state(str(Path(OUTPUT_DIR) / "state.json"))
@@ -320,7 +337,7 @@ def main(argv: list[str] | None = None):
 
     else:
         print(f"Unknown command: {command}")
-        print("Usage: python run.py [run|scrape|analyze|price|status]")
+        print("Usage: python run.py [run|scrape|analyze|price|notify|status]")
 
 
 if __name__ == "__main__":

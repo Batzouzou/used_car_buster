@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from telegram import Update, Bot, InputMediaPhoto
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
 from config import (
     TELEGRAM_BOT_TOKEN, TELEGRAM_FRIEND_CHAT_ID, TELEGRAM_JEROME_CHAT_ID,
@@ -469,4 +469,48 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("intervalle", cmd_intervalle))
     app.add_handler(CommandHandler("statut", cmd_statut))
 
+    # Free text handler — supports typing without /
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+
     return app
+
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle free text input — route to appropriate command."""
+    text = (update.message.text or "").strip().lower()
+
+    if text in ("chercher", "rechercher", "search"):
+        await cmd_chercher(update, context)
+    elif text in ("liste", "list"):
+        await cmd_liste(update, context)
+    elif text in ("statut", "status"):
+        await cmd_statut(update, context)
+    elif text in ("effacer", "clear"):
+        await cmd_effacer(update, context)
+    elif text.startswith("details ") or text.startswith("detail "):
+        num = text.split()[-1]
+        context.args = [num]
+        await cmd_details(update, context)
+    elif text.startswith("approuver ") or text.startswith("ok "):
+        nums = text.split(None, 1)[-1]
+        context.args = [nums]
+        await cmd_approuver(update, context)
+    elif text.startswith("rejeter ") or text.startswith("drop "):
+        nums = text.split(None, 1)[-1]
+        context.args = [nums]
+        await cmd_rejeter(update, context)
+    elif text.startswith("intervalle "):
+        val = text.split(None, 1)[-1]
+        context.args = [val]
+        await cmd_intervalle(update, context)
+    else:
+        await update.message.reply_text(
+            "Commandes disponibles:\n"
+            "chercher - Lancer une recherche\n"
+            "liste - Voir la shortlist\n"
+            "details 3 - Details annonce #3\n"
+            "approuver 1,3 - Approuver\n"
+            "rejeter 2 - Rejeter\n"
+            "effacer - Supprimer messages\n"
+            "statut - Etat du pipeline"
+        )

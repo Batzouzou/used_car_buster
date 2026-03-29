@@ -97,7 +97,7 @@ def test_build_application_registers_handlers():
             mock_builder.build.return_value = mock_app
             mock_app_cls.builder.return_value = mock_builder
             app = build_application()
-            assert mock_app.add_handler.call_count == 10
+            assert mock_app.add_handler.call_count == 11
 
 
 @pytest.mark.asyncio

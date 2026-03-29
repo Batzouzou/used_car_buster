@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from telegram import Update, Bot, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 from config import (
     TELEGRAM_BOT_TOKEN, TELEGRAM_FRIEND_CHAT_ID, TELEGRAM_JEROME_CHAT_ID,
@@ -135,8 +135,20 @@ def format_listing_notification(listing: ScoredListing, number: int) -> str:
 
     platform_tag = {"leboncoin": "LBC", "autoscout24": "AutoScout", "lacentrale": "LaCentrale", "leparking": "LeParking"}.get(listing.platform, listing.platform)
 
+    # Stars based on score: 90+=5, 75+=4, 60+=3, 50+=2, else 1
+    if listing.score >= 90:
+        stars = "⭐⭐⭐⭐⭐"
+    elif listing.score >= 75:
+        stars = "⭐⭐⭐⭐"
+    elif listing.score >= 60:
+        stars = "⭐⭐⭐"
+    elif listing.score >= 50:
+        stars = "⭐⭐"
+    else:
+        stars = "⭐"
+
     return (
-        f"#{number} ⭐ {listing.score}/100\n"
+        f"#{number} {stars} {listing.score}/100\n"
         f"📌 {platform_tag}\n"
         f"{listing.title}\n"
         f"💰 {price_str} | 📅 {listing.year} | 🛣️ {km_str}\n"
@@ -193,6 +205,7 @@ class TelegramNotifier:
         buttons.append([InlineKeyboardButton("🚗 ➤ VOIR L'ANNONCE ➤ 🚗", url=listing.url)])
         if phone:
             buttons.append([InlineKeyboardButton(f"📞 APPELER : {phone}", url=f"tel:{phone}")])
+        buttons.append([InlineKeyboardButton("🗑️ Pas interessant", callback_data=f"trash_{listing.id}")])
         keyboard = InlineKeyboardMarkup(buttons)
 
         try:
@@ -555,6 +568,16 @@ async def post_init(app: Application) -> None:
     ])
 
 
+async def callback_trash(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle trash button — delete the message with the listing."""
+    query = update.callback_query
+    await query.answer("Annonce supprimee 🗑️")
+    try:
+        await query.message.delete()
+    except Exception:
+        pass
+
+
 def build_application() -> Application:
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
 
@@ -567,6 +590,9 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("effacer", cmd_effacer))
     app.add_handler(CommandHandler("intervalle", cmd_intervalle))
     app.add_handler(CommandHandler("statut", cmd_statut))
+
+    # Trash button callback
+    app.add_handler(CallbackQueryHandler(callback_trash, pattern="^trash_"))
 
     # Free text handler — supports typing without /
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))

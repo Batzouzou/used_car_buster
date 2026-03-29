@@ -64,16 +64,16 @@ LISTINGS:
 Return a JSON array with one scored object per listing."""
 
 
-def analyze_listings(
-    listings: list[RawListing],
-    client: LLMClient,
-    top_n: int = 10,
-) -> tuple[list[ScoredListing], list[ScoredListing]]:
-    """Score listings via LLM, return (shortlist_pro, shortlist_part)."""
-    if not listings:
-        return [], []
+BATCH_SIZE = 10  # Max listings per LLM call — keeps prompt under 8B context limits
 
-    prompt = _build_analyst_prompt(listings)
+
+def _score_batch(
+    batch: list[RawListing],
+    raw_lookup: dict[str, RawListing],
+    client: LLMClient,
+) -> list[ScoredListing]:
+    """Score a single batch of listings via LLM."""
+    prompt = _build_analyst_prompt(batch)
     response = client.query(
         messages=[{"role": "user", "content": prompt}],
         model_preference="local",
@@ -83,11 +83,9 @@ def analyze_listings(
     scored_data = extract_json_from_text(response.text)
     if not scored_data or not isinstance(scored_data, list):
         logger.error(f"Analyst returned invalid JSON: {response.text[:200]}")
-        return [], []
+        return []
 
-    raw_lookup = {l.id: l for l in listings}
-
-    scored_listings = []
+    results = []
     for item in scored_data:
         try:
             raw = raw_lookup.get(item["id"])
@@ -106,9 +104,35 @@ def analyze_listings(
                 concerns=item.get("concerns", []),
                 summary_fr=item.get("summary_fr", ""),
             )
-            scored_listings.append(scored)
+            results.append(scored)
         except Exception as e:
             logger.warning(f"Failed to parse scored listing {item.get('id', '?')}: {e}")
+
+    return results
+
+
+def analyze_listings(
+    listings: list[RawListing],
+    client: LLMClient,
+    top_n: int = 10,
+) -> tuple[list[ScoredListing], list[ScoredListing]]:
+    """Score listings via LLM in batches, return (shortlist_pro, shortlist_part)."""
+    if not listings:
+        return [], []
+
+    raw_lookup = {l.id: l for l in listings}
+    scored_listings = []
+
+    # Process in batches to stay within LLM context limits
+    for i in range(0, len(listings), BATCH_SIZE):
+        batch = listings[i:i + BATCH_SIZE]
+        batch_num = i // BATCH_SIZE + 1
+        total_batches = (len(listings) + BATCH_SIZE - 1) // BATCH_SIZE
+        logger.info(f"Analyst batch {batch_num}/{total_batches}: {len(batch)} listings")
+
+        results = _score_batch(batch, raw_lookup, client)
+        scored_listings.extend(results)
+        logger.info(f"Batch {batch_num}: scored {len(results)}/{len(batch)}")
 
     active = [s for s in scored_listings if not s.excluded]
     pro = sorted([s for s in active if s.seller_type == "pro"], key=lambda x: x.score, reverse=True)[:top_n]

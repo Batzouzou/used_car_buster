@@ -1,7 +1,9 @@
 # tests/test_run.py
 import os
 from unittest.mock import patch, MagicMock
-from run import main, _is_pid_alive, _kill_old_instance, _write_pid, PID_FILE
+from run import main, _is_pid_alive, _kill_old_instance, _write_pid, _build_html, PID_FILE
+from models import RawListing
+from datetime import datetime, timezone
 
 
 def test_main_no_args_starts_bot_and_scheduler():
@@ -119,6 +121,89 @@ def test_main_analyze_with_files(capsys, tmp_path):
         captured = capsys.readouterr()
         assert "Loaded 1 listings" in captured.out
         assert "Shortlist" in captured.out
+
+
+def _make_raw_listing(**overrides):
+    now = datetime.now(timezone.utc).isoformat()
+    defaults = dict(
+        id="lbc_1", platform="leboncoin", title="Toyota iQ Auto",
+        price=3200, year=2011, mileage_km=78000, transmission="auto",
+        city="Vitry", department="94", lat=48.787, lon=2.392,
+        seller_type="private", suspected_pro=False, has_phone=False,
+        url="https://lbc.fr/1", scraped_at=now,
+    )
+    defaults.update(overrides)
+    return RawListing(**defaults)
+
+
+# --- HTML generator tests ---
+
+def test_build_html_splits_pro_and_particulier():
+    """HTML must contain separate Pro and Particulier sections."""
+    listings = [
+        _make_raw_listing(id="lbc_1", seller_type="pro", price=3000),
+        _make_raw_listing(id="lbc_2", seller_type="private", price=4000),
+    ]
+    html = _build_html(listings)
+    assert "Professionnels" in html
+    assert "Particuliers" in html
+    assert "(1)" in html  # 1 pro
+    # Global numbering: pro=#1, private=#2
+    assert "#1" in html
+    assert "#2" in html
+
+
+def test_build_html_phone_icon():
+    """has_phone=True must show phone icon in HTML."""
+    listings = [
+        _make_raw_listing(id="lbc_1", has_phone=True),
+        _make_raw_listing(id="lbc_2", has_phone=False),
+    ]
+    html = _build_html(listings)
+    assert "&#128222;" in html  # phone emoji
+    # Only one phone icon
+    assert html.count("&#128222;") == 1
+
+
+def test_build_html_pro_badge():
+    """Pro sellers must show PRO badge."""
+    listings = [_make_raw_listing(seller_type="pro")]
+    html = _build_html(listings)
+    assert "PRO" in html
+    assert "pro-badge" in html
+
+
+def test_build_html_suspected_pro_badge():
+    """suspected_pro=True + seller_type=pro must show 'suspect pro' badge."""
+    listings = [_make_raw_listing(seller_type="pro", suspected_pro=True)]
+    html = _build_html(listings)
+    assert "suspect pro" in html
+
+
+def test_build_html_no_pro_section_message():
+    """When no pros, show 'Aucune annonce professionnelle'."""
+    listings = [_make_raw_listing(seller_type="private")]
+    html = _build_html(listings)
+    assert "Aucune annonce professionnelle" in html
+
+
+def test_build_html_images():
+    """Listings with images must have img tags."""
+    listings = [_make_raw_listing(images=["https://img.lbc.fr/1.jpg", "https://img.lbc.fr/2.jpg"])]
+    html = _build_html(listings)
+    assert html.count("<img") == 2
+
+
+def test_build_html_price_sorted():
+    """Listings within each section must be sorted by price ascending."""
+    listings = [
+        _make_raw_listing(id="lbc_exp", seller_type="private", price=9000),
+        _make_raw_listing(id="lbc_cheap", seller_type="private", price=3000),
+    ]
+    html = _build_html(listings)
+    pos_cheap = html.index("3,000")
+    pos_exp = html.index("9,000")
+    assert pos_cheap < pos_exp
 
 
 def test_main_price_with_files(capsys, tmp_path):

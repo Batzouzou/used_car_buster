@@ -63,6 +63,89 @@ def _write_pid() -> None:
     atexit.register(lambda: PID_FILE.unlink(missing_ok=True))
 
 
+def _build_listing_card(i, l, orly_lat, orly_lon, haversine_km):
+    """Build one HTML card for a listing."""
+    dist = ""
+    if l.lat and l.lon:
+        km = haversine_km(orly_lat, orly_lon, l.lat, l.lon)
+        dist = f"{km:.0f} km d'Orly"
+
+    imgs_html = ""
+    for img_url in (l.images or [])[:6]:
+        imgs_html += f'<img src="{img_url}" loading="lazy">'
+
+    km_str = f"{l.mileage_km:,} km".replace(",", " ") if l.mileage_km else "? km"
+    phone_icon = '<span class="phone" title="Telephone disponible">&#128222;</span>' if getattr(l, "has_phone", False) else ""
+    pro_badge = '<span class="pro-badge">PRO</span>' if l.seller_type == "pro" else ""
+    suspected = '<span class="suspected-badge" title="Detecte via mots-cles annonce">suspect pro</span>' if getattr(l, "suspected_pro", False) and l.seller_type == "pro" else ""
+
+    return f"""
+    <div class="card">
+      <div class="header">
+        <span class="num">#{i}</span>
+        <span class="price">{l.price:,} &euro;</span>
+        <span class="year">{l.year}</span>
+        <span class="km">{km_str}</span>
+        <span class="loc">{l.city or '?'} ({l.department or '?'}) &mdash; {dist}</span>
+        {pro_badge}{suspected}{phone_icon}
+      </div>
+      <div class="title"><a href="{l.url}" target="_blank">{l.title}</a></div>
+      <div class="photos">{imgs_html}</div>
+      <div class="desc">{(l.description or '')[:500]}</div>
+    </div>"""
+
+
+def _build_html(listings) -> str:
+    """Build an HTML page split into Pro / Particulier sections with photos."""
+    from config import ORLY_LAT, ORLY_LON
+    from utils import haversine_km
+
+    pros = sorted([l for l in listings if l.seller_type == "pro"], key=lambda x: x.price)
+    parts = sorted([l for l in listings if l.seller_type != "pro"], key=lambda x: x.price)
+
+    pro_html = ""
+    for i, l in enumerate(pros, 1):
+        pro_html += _build_listing_card(i, l, ORLY_LAT, ORLY_LON, haversine_km)
+
+    # Particuliers numbering continues after pros (global numbering)
+    part_html = ""
+    for i, l in enumerate(parts, len(pros) + 1):
+        part_html += _build_listing_card(i, l, ORLY_LAT, ORLY_LON, haversine_km)
+
+    return f"""<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>Toyota iQ Auto &mdash; {len(listings)} annonces</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; margin: 20px; }}
+  h1 {{ color: #00d4ff; }}
+  h2 {{ color: #ff9f43; margin-top: 40px; border-bottom: 1px solid #333; padding-bottom: 8px; }}
+  .card {{ background: #16213e; border-radius: 10px; padding: 16px; margin-bottom: 20px; }}
+  .header {{ display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }}
+  .num {{ color: #888; font-weight: bold; }}
+  .price {{ color: #00ff88; font-size: 1.3em; font-weight: bold; }}
+  .year, .km, .loc {{ color: #aaa; }}
+  .phone {{ font-size: 1.2em; }}
+  .pro-badge {{ background: #ff6b6b; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }}
+  .suspected-badge {{ background: #f59e0b; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; }}
+  .title a {{ color: #00d4ff; text-decoration: none; font-size: 1.1em; }}
+  .title a:hover {{ text-decoration: underline; }}
+  .photos {{ display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; }}
+  .photos img {{ height: 180px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }}
+  .desc {{ color: #999; font-size: 0.9em; white-space: pre-wrap; margin-top: 8px; }}
+  .count {{ color: #888; font-weight: normal; font-size: 0.8em; }}
+</style></head><body>
+<h1>Toyota iQ Automatique &mdash; {len(listings)} annonces</h1>
+<p>Tri par prix croissant | Photos: max 6 par annonce</p>
+
+<h2>Professionnels <span class="count">({len(pros)})</span></h2>
+{pro_html if pro_html else '<p style="color:#666">Aucune annonce professionnelle</p>'}
+
+<h2>Particuliers <span class="count">({len(parts)})</span></h2>
+{part_html}
+
+</body></html>"""
+
+
 def main(argv: list[str] | None = None):
     args = argv or sys.argv
     command = args[1] if len(args) > 1 else "run"
@@ -135,6 +218,12 @@ def main(argv: list[str] | None = None):
             encoding="utf-8",
         )
         print(f"Saved {len(deduped)} listings to {output}")
+
+        # Generate HTML viewer with photos
+        html_path = Path(OUTPUT_DIR) / f"listings_{datetime.now().strftime('%Y%m%d')}.html"
+        html_path.write_text(_build_html(deduped), encoding="utf-8")
+        print(f"HTML viewer: {html_path}")
+        os.startfile(str(html_path))
 
     elif command == "analyze":
         from agent_analyst import analyze_listings

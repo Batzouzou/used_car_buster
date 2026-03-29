@@ -3,7 +3,7 @@
 import pytest
 from dataclasses import dataclass
 from unittest.mock import patch, MagicMock
-from scraper_lbc import _ad_to_listing, scrape_leboncoin
+from scraper_lbc import _ad_to_listing, _detect_suspected_pro, scrape_leboncoin
 from models import RawListing
 
 
@@ -31,6 +31,12 @@ def _make_attribute(key, value, value_label=""):
     return attr
 
 
+def _make_user(is_pro=False):
+    user = MagicMock()
+    user.is_pro = is_pro
+    return user
+
+
 def _make_ad(**overrides):
     """Create a mock lbc.Ad with sensible defaults."""
     defaults = dict(
@@ -39,9 +45,11 @@ def _make_ad(**overrides):
         price=3200,
         body="Toyota iQ automatique, bon etat, CT OK",
         ad_type="pro",
+        has_phone=False,
         url="https://www.leboncoin.fr/voitures/12345.htm",
         images=["https://img.lbc.fr/1.jpg"],
         location=_make_location(),
+        user=_make_user(is_pro=False),
         attributes=[
             _make_attribute("mileage", "78000"),
             _make_attribute("regdate", "2011"),
@@ -76,25 +84,38 @@ def test_ad_to_listing_basic():
     assert listing.year == 2011
     assert listing.mileage_km == 78000
     assert listing.transmission == "auto"
-    assert listing.seller_type == "pro"
     assert listing.city == "Vitry-sur-Seine"
     assert listing.lat == 48.787
     assert listing.lon == 2.392
 
 
 def test_ad_to_listing_private_seller():
-    ad = _make_ad(ad_type="private")
+    ad = _make_ad(user=_make_user(is_pro=False))
     listing = _ad_to_listing(ad)
     assert listing.seller_type == "private"
 
 
-def test_ad_to_listing_manual_gearbox():
+# --- Fix #1: post-filter transmission ---
+
+def test_ad_to_listing_manual_gearbox_returns_none():
+    """Manual transmission must be post-filtered out (returns None)."""
     ad = _make_ad(attributes=[
         _make_attribute("gearbox", "1"),
         _make_attribute("regdate", "2010"),
     ])
     listing = _ad_to_listing(ad)
-    assert listing.transmission == "manual"
+    assert listing is None
+
+
+def test_ad_to_listing_unknown_gearbox_passes():
+    """Unknown gearbox (not in map) should pass through, not be filtered."""
+    ad = _make_ad(attributes=[
+        _make_attribute("gearbox", "99"),
+        _make_attribute("regdate", "2010"),
+    ])
+    listing = _ad_to_listing(ad)
+    assert listing is not None
+    assert listing.transmission is None
 
 
 def test_ad_to_listing_missing_mileage():
@@ -211,22 +232,35 @@ def test_scrape_leboncoin_bad_ad_skipped(mock_client_cls):
 
 
 @patch("scraper_lbc.lbc.Client")
-def test_scrape_leboncoin_search_params(mock_client_cls):
-    """Verify search is called with correct kwargs."""
-    import lbc as lbc_mod
+def test_scrape_leboncoin_search_uses_url(mock_client_cls):
+    """Verify search is called with URL-based params."""
+    from scraper_lbc import LBC_SEARCH_URL
     mock_client = MagicMock()
     mock_client.search.return_value = _make_search_result(ads=[], max_pages=1)
     mock_client_cls.return_value = mock_client
 
     scrape_leboncoin()
 
-    mock_client.search.assert_called_once_with(
-        category=lbc_mod.Category.VEHICULES_VOITURES,
-        u_car_brand=("TOYOTA",),
-        u_car_model=("TOYOTA_iQ",),
-        gearbox=("2",),
-        limit=100,
+    mock_client.search.assert_called_once_with(url=LBC_SEARCH_URL, limit=100)
+
+
+@patch("scraper_lbc.lbc.Client")
+def test_scrape_leboncoin_filters_manual(mock_client_cls):
+    """Manual gearbox ads in search results are filtered out."""
+    auto_ad = _make_ad(id=1)
+    manual_ad = _make_ad(id=2, attributes=[
+        _make_attribute("gearbox", "1"),
+        _make_attribute("regdate", "2010"),
+    ])
+    mock_client = MagicMock()
+    mock_client.search.return_value = _make_search_result(
+        ads=[auto_ad, manual_ad], max_pages=1,
     )
+    mock_client_cls.return_value = mock_client
+
+    listings = scrape_leboncoin()
+    assert len(listings) == 1
+    assert listings[0].id == "lbc_1"
 
 
 @patch("scraper_lbc.lbc.Client")
@@ -241,3 +275,68 @@ def test_scrape_leboncoin_pagination_error_stops(mock_client_cls):
 
     listings = scrape_leboncoin()
     assert len(listings) == 1
+
+
+# --- Fix #2: _detect_suspected_pro ---
+
+def test_detect_suspected_pro_frais_agence():
+    assert _detect_suspected_pro("Prix TTC + frais d'agence 300 EUR") is True
+
+
+def test_detect_suspected_pro_siret():
+    assert _detect_suspected_pro("SIRET 123 456 789 00012") is True
+
+
+def test_detect_suspected_pro_case_insensitive():
+    assert _detect_suspected_pro("FRAIS D'AGENCE inclus") is True
+
+
+def test_detect_suspected_pro_normal_private():
+    assert _detect_suspected_pro("Vends ma Toyota iQ, bon etat") is False
+
+
+def test_detect_suspected_pro_none_body():
+    assert _detect_suspected_pro(None) is False
+
+
+def test_detect_suspected_pro_empty_body():
+    assert _detect_suspected_pro("") is False
+
+
+# --- Fix #3: seller_type from user.is_pro + suspected_pro ---
+
+def test_seller_type_user_is_pro():
+    """user.is_pro=True → seller_type='pro' regardless of body."""
+    ad = _make_ad(body="Vends ma voiture", user=_make_user(is_pro=True))
+    listing = _ad_to_listing(ad)
+    assert listing.seller_type == "pro"
+
+
+def test_seller_type_suspected_pro_from_body():
+    """Private account but body contains 'frais d'agence' → pro + suspected_pro."""
+    ad = _make_ad(body="Prix + frais d'agence", user=_make_user(is_pro=False))
+    listing = _ad_to_listing(ad)
+    assert listing.seller_type == "pro"
+    assert listing.suspected_pro is True
+
+
+def test_seller_type_genuine_private():
+    """Private account, clean body → seller_type='private'."""
+    ad = _make_ad(body="Vends ma Toyota iQ", user=_make_user(is_pro=False))
+    listing = _ad_to_listing(ad)
+    assert listing.seller_type == "private"
+    assert listing.suspected_pro is False
+
+
+# --- Fix #4: has_phone ---
+
+def test_has_phone_true():
+    ad = _make_ad(has_phone=True)
+    listing = _ad_to_listing(ad)
+    assert listing.has_phone is True
+
+
+def test_has_phone_false():
+    ad = _make_ad(has_phone=False)
+    listing = _ad_to_listing(ad)
+    assert listing.has_phone is False

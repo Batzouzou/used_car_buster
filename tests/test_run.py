@@ -8,6 +8,7 @@ def test_main_no_args_starts_bot_and_scheduler():
     with patch("run._kill_old_instance"), \
          patch("run._write_pid"), \
          patch("agent_supervisor.SupervisorAgent"), \
+         patch("monitor.start_monitor_thread") as mock_monitor, \
          patch("scheduler.PipelineScheduler") as mock_sched_cls, \
          patch("telegram_bot.build_application") as mock_build:
         mock_sched = MagicMock()
@@ -15,6 +16,7 @@ def test_main_no_args_starts_bot_and_scheduler():
         mock_app = MagicMock()
         mock_build.return_value = mock_app
         main(["run.py"])
+        mock_monitor.assert_called_once()
         mock_sched.start.assert_called_once()
         mock_app.run_polling.assert_called_once()
 

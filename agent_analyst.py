@@ -37,8 +37,15 @@ OUTPUT SCHEMA (strict JSON array, no markdown, no explanation):
   "red_flags": [],
   "highlights": ["CT OK", "1 proprio"],
   "concerns": ["km eleve pour l'annee"],
-  "summary_fr": "iQ 2011 68k km, bon etat, CT OK."
+  "summary_fr": "Toyota iQ 2011 avec 68k km a 3200 EUR. Points forts : CT OK, un seul proprietaire, carnet d'entretien suivi. Le kilometrage est un peu eleve pour l'annee mais reste raisonnable. Le prix est dans la fourchette basse du marche. Situe a 12 km d'Orly, facilement accessible. Bonne affaire si le controle technique est recent."
 }]
+
+IMPORTANT for summary_fr:
+- Write 3-5 sentences in French explaining WHY this car is good or bad
+- Mention: price vs market, mileage vs age, condition signals found in description, location
+- Be specific: use actual numbers from the listing, not generic phrases
+- If concerns exist, explain them clearly
+- This summary will be shown to the buyer on Telegram — make it useful and actionable
 
 IMPORTANT: Return ONLY a JSON array. No other text."""
 
@@ -64,7 +71,7 @@ LISTINGS:
 Return a JSON array with one scored object per listing."""
 
 
-BATCH_SIZE = 10  # Max listings per LLM call — keeps prompt under 8B context limits
+BATCH_SIZE = 5  # Max listings per LLM call — keeps prompt + detailed summaries under 8B context limits
 
 
 def _score_batch(

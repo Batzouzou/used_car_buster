@@ -103,7 +103,7 @@ class LLMClient:
                 "model": LM_STUDIO_MODEL,
                 "messages": lm_messages,
                 "temperature": 0.1,
-                "max_tokens": 8192,
+                "max_tokens": 16384,
             },
             timeout=300,
         )

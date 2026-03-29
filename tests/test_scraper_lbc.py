@@ -2,7 +2,10 @@ import json
 import os
 import pytest
 from unittest.mock import patch, MagicMock
-from scraper_lbc import parse_lbc_listings, scrape_leboncoin, _scrape_lbc_fallback
+from scraper_lbc import (
+    parse_lbc_listings, scrape_leboncoin, _scrape_lbc_fallback,
+    _build_search_url, _parse_nextdata_ads,
+)
 from models import RawListing
 
 FIXTURE_PATH = os.path.join(os.path.dirname(__file__), "fixtures", "lbc_sample.json")
@@ -50,9 +53,78 @@ def test_scrape_leboncoin_returns_listings(mock_session_cls):
     assert all(isinstance(l, RawListing) for l in listings)
 
 
-def test_scrape_lbc_fallback_returns_empty():
-    """Fallback stub returns empty list."""
+def test_build_search_url():
+    """Search URL contains brand, model, gearbox=2, and Orly coords."""
+    url = _build_search_url()
+    assert "leboncoin.fr/recherche" in url
+    assert "category=2" in url
+    assert "u_car_brand=TOYOTA" in url
+    assert "_u_car_model=TOYOTA_iQ" in url
+    assert "gearbox=2" in url
+    assert "48.7262" in url
+
+
+def test_parse_nextdata_ads_valid():
+    """__NEXT_DATA__ with ads → returns ad list."""
+    html = '<html><script id="__NEXT_DATA__" type="application/json">'
+    html += json.dumps({"props": {"pageProps": {"searchData": {"ads": [
+        {"list_id": 1, "subject": "iQ", "price": [3000],
+         "attributes": [], "location": {}, "owner": {},
+         "url": "http://x", "body": "", "images": {}}
+    ]}}}})
+    html += '</script></html>'
+    ads = _parse_nextdata_ads(html)
+    assert len(ads) == 1
+    assert ads[0]["list_id"] == 1
+
+
+def test_parse_nextdata_ads_missing():
+    """No __NEXT_DATA__ script tag → empty list."""
+    assert _parse_nextdata_ads("<html><body>No data</body></html>") == []
+
+
+def test_parse_nextdata_ads_malformed_json():
+    """__NEXT_DATA__ with invalid JSON → empty list."""
+    html = '<html><script id="__NEXT_DATA__">not json</script></html>'
+    assert _parse_nextdata_ads(html) == []
+
+
+@patch("scraper_lbc.time.sleep")
+def test_scrape_lbc_fallback_with_ads(mock_sleep):
+    """Fallback scrapes HTML and returns listings."""
+    ads_data = {"props": {"pageProps": {"searchData": {"ads": [
+        {"list_id": 77, "subject": "iQ Auto", "price": [2900],
+         "attributes": [], "location": {}, "owner": {},
+         "url": "http://x", "body": "", "images": {}}
+    ]}}}}
+    html = f'<html><script id="__NEXT_DATA__" type="application/json">{json.dumps(ads_data)}</script></html>'
     session = MagicMock()
+    mock_resp = MagicMock()
+    mock_resp.text = html
+    mock_resp.raise_for_status = MagicMock()
+    session.get.return_value = mock_resp
+    result = _scrape_lbc_fallback(session)
+    assert len(result) == 1
+    assert result[0].id == "lbc_77"
+
+
+@patch("scraper_lbc.time.sleep")
+def test_scrape_lbc_fallback_no_ads(mock_sleep):
+    """Fallback with empty __NEXT_DATA__ → empty list."""
+    html = '<html><script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{}}}</script></html>'
+    session = MagicMock()
+    mock_resp = MagicMock()
+    mock_resp.text = html
+    mock_resp.raise_for_status = MagicMock()
+    session.get.return_value = mock_resp
+    result = _scrape_lbc_fallback(session)
+    assert result == []
+
+
+def test_scrape_lbc_fallback_exception():
+    """Fallback with network error → empty list, no crash."""
+    session = MagicMock()
+    session.get.side_effect = ConnectionError("timeout")
     result = _scrape_lbc_fallback(session)
     assert result == []
 

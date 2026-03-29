@@ -133,13 +133,16 @@ def format_listing_notification(listing: ScoredListing, number: int) -> str:
     if getattr(listing, "summary_fr", ""):
         summary = f"\n\n{listing.summary_fr}"
 
+    platform_tag = {"leboncoin": "LBC", "autoscout24": "AutoScout", "lacentrale": "LaCentrale", "leparking": "LeParking"}.get(listing.platform, listing.platform)
+
     return (
-        f"#{number} [{listing.score}/100] {listing.year} - {price_str} - {km_str}\n"
+        f"#{number} ⭐ {listing.score}/100\n"
+        f"📌 {platform_tag}\n"
         f"{listing.title}\n"
-        f"{listing.city or '?'} ({listing.department or '?'}) {dist}\n"
-        f"{seller_label}: {seller_name}{phone_line}"
-        f"{plus}{moins}{alertes}{summary}\n\n"
-        f"{listing.url}"
+        f"💰 {price_str} | 📅 {listing.year} | 🛣️ {km_str}\n"
+        f"📍 {listing.city or '?'} ({listing.department or '?'}) {dist}\n"
+        f"👤 {seller_label}: {seller_name}{phone_line}"
+        f"{plus}{moins}{alertes}{summary}"
     )
 
 

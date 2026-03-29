@@ -44,8 +44,8 @@ CACHE_FRESHNESS_HOURS = 4
 
 # --- LLM ---
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+LM_STUDIO_BASE_URL = os.getenv("LM_STUDIO_BASE_URL", "http://localhost:1234")
+LM_STUDIO_MODEL = os.getenv("LM_STUDIO_MODEL", "qwen3-vl-8b")
 LLM_MAX_RETRIES = 2
 
 # --- Telegram ---

@@ -26,7 +26,7 @@ def test_analyze_listings_returns_two_lists():
     mock_client = MagicMock()
     mock_client.query.return_value = LLMResponse(
         text='[{"id":"lbc_1","score":78,"score_breakdown":{"price":25,"mileage":15,"year":10,"proximity":8,"condition":10,"transmission":10},"excluded":false,"exclusion_reason":null,"red_flags":[],"highlights":["CT OK"],"concerns":[],"summary_fr":"Bon etat"}]',
-        model_used="ollama",
+        model_used="lm_studio",
         raw=None,
     )
     listings = [_make_listing()]
@@ -40,7 +40,7 @@ def test_analyze_listings_splits_pro_and_private():
     mock_client = MagicMock()
     mock_client.query.return_value = LLMResponse(
         text='[{"id":"lbc_1","score":78,"score_breakdown":{"price":25,"mileage":15,"year":10,"proximity":8,"condition":10,"transmission":10},"excluded":false,"exclusion_reason":null,"red_flags":[],"highlights":[],"concerns":[],"summary_fr":"OK"},{"id":"lbc_2","score":65,"score_breakdown":{"price":20,"mileage":10,"year":10,"proximity":15,"condition":5,"transmission":10},"excluded":false,"exclusion_reason":null,"red_flags":[],"highlights":[],"concerns":[],"summary_fr":"OK"}]',
-        model_used="ollama",
+        model_used="lm_studio",
         raw=None,
     )
     listings = [
@@ -57,7 +57,7 @@ def test_analyze_excludes_manual():
     mock_client = MagicMock()
     mock_client.query.return_value = LLMResponse(
         text='[{"id":"lbc_1","score":-1,"score_breakdown":{"price":0,"mileage":0,"year":0,"proximity":0,"condition":0,"transmission":-100},"excluded":true,"exclusion_reason":"Manual transmission","red_flags":["manual"],"highlights":[],"concerns":[],"summary_fr":"Exclue"}]',
-        model_used="ollama",
+        model_used="lm_studio",
         raw=None,
     )
     listings = [_make_listing(transmission="manual")]
@@ -80,7 +80,7 @@ def test_analyze_invalid_json_from_llm():
     mock_client = MagicMock()
     mock_client.query.return_value = LLMResponse(
         text="Sorry, I cannot parse these listings.",
-        model_used="ollama",
+        model_used="lm_studio",
         raw=None,
     )
     listings = [_make_listing()]
@@ -94,7 +94,7 @@ def test_analyze_llm_returns_object_not_array():
     mock_client = MagicMock()
     mock_client.query.return_value = LLMResponse(
         text='{"error": "something went wrong"}',
-        model_used="ollama",
+        model_used="lm_studio",
         raw=None,
     )
     listings = [_make_listing()]
@@ -108,7 +108,7 @@ def test_analyze_unknown_id_in_llm_response():
     mock_client = MagicMock()
     mock_client.query.return_value = LLMResponse(
         text='[{"id":"lbc_999","score":80,"score_breakdown":{"price":25,"mileage":15,"year":10,"proximity":8,"condition":10,"transmission":10},"excluded":false,"red_flags":[],"highlights":[],"concerns":[],"summary_fr":"OK"}]',
-        model_used="ollama",
+        model_used="lm_studio",
         raw=None,
     )
     listings = [_make_listing(id="lbc_1")]
@@ -122,7 +122,7 @@ def test_analyze_malformed_item_in_response():
     mock_client = MagicMock()
     mock_client.query.return_value = LLMResponse(
         text='[{"id":"lbc_1","score":78}]',
-        model_used="ollama",
+        model_used="lm_studio",
         raw=None,
     )
     listings = [_make_listing()]
@@ -155,7 +155,7 @@ def test_analyze_top_n_limits_results():
     ]
     mock_client = MagicMock()
     mock_client.query.return_value = LLMResponse(
-        text=json.dumps(scored), model_used="ollama", raw=None,
+        text=json.dumps(scored), model_used="lm_studio", raw=None,
     )
     pro, part = analyze_listings(listings, mock_client, top_n=1)
     assert len(pro) == 1

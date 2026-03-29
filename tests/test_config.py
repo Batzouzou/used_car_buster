@@ -1,7 +1,7 @@
 from config import (
     SEARCH_CRITERIA, DISTANCE_ZONES, ORLY_LAT, ORLY_LON,
     PLATFORMS, CACHE_FRESHNESS_HOURS, SCORING_WEIGHTS,
-    LLM_MAX_RETRIES, OLLAMA_MODEL
+    LLM_MAX_RETRIES, LM_STUDIO_MODEL
 )
 
 def test_search_criteria_locked():
@@ -32,9 +32,9 @@ def test_scoring_weights_sum_to_100():
 def test_cache_freshness():
     assert CACHE_FRESHNESS_HOURS == 4
 
-def test_ollama_model_configurable():
-    assert isinstance(OLLAMA_MODEL, str)
-    assert len(OLLAMA_MODEL) > 0
+def test_lm_studio_model_configurable():
+    assert isinstance(LM_STUDIO_MODEL, str)
+    assert len(LM_STUDIO_MODEL) > 0
 
 def test_platforms_includes_all_four():
     assert "leboncoin" in PLATFORMS

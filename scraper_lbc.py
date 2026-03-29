@@ -64,6 +64,10 @@ def _ad_to_listing(ad: lbc.Ad) -> RawListing | None:
     # Fix #4: has_phone indicator
     has_phone = getattr(ad, "has_phone", False)
 
+    # Seller contact info
+    user = getattr(ad, "user", None)
+    seller_name = getattr(user, "name", None) if user else None
+
     return RawListing(
         id=f"lbc_{ad.id}",
         platform="leboncoin",
@@ -78,6 +82,7 @@ def _ad_to_listing(ad: lbc.Ad) -> RawListing | None:
         lat=ad.location.lat if ad.location else None,
         lon=ad.location.lng if ad.location else None,
         seller_type=seller_type,
+        seller_name=seller_name,
         suspected_pro=suspected_pro,
         has_phone=has_phone,
         url=ad.url or "",

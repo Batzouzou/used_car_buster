@@ -79,6 +79,17 @@ def _build_listing_card(i, l, orly_lat, orly_lon, haversine_km):
     pro_badge = '<span class="pro-badge">PRO</span>' if l.seller_type == "pro" else ""
     suspected = '<span class="suspected-badge" title="Detecte via mots-cles annonce">suspect pro</span>' if getattr(l, "suspected_pro", False) and l.seller_type == "pro" else ""
 
+    name = getattr(l, "seller_name", None) or ""
+    phone = getattr(l, "seller_phone", None)
+
+    seller_line = f'<span class="seller-name">{name}</span>' if name else ""
+
+    phone_btn = ""
+    if phone:
+        phone_btn = f'<a href="tel:{phone}" class="btn btn-phone">&#128222; {phone}</a>'
+
+    contact_btn = f'<a href="{l.url}" target="_blank" class="btn btn-contact">&#9993; Contacter</a>'
+
     return f"""
     <div class="card">
       <div class="header">
@@ -87,9 +98,11 @@ def _build_listing_card(i, l, orly_lat, orly_lon, haversine_km):
         <span class="year">{l.year}</span>
         <span class="km">{km_str}</span>
         <span class="loc">{l.city or '?'} ({l.department or '?'}) &mdash; {dist}</span>
-        {pro_badge}{suspected}{phone_icon}
+        <span class="platform">{l.platform}</span>
+        {pro_badge}{suspected}
       </div>
       <div class="title"><a href="{l.url}" target="_blank">{l.title}</a></div>
+      <div class="actions">{seller_line} {phone_btn} {contact_btn}</div>
       <div class="photos">{imgs_html}</div>
       <div class="desc">{(l.description or '')[:500]}</div>
     </div>"""
@@ -125,6 +138,14 @@ def _build_html(listings) -> str:
   .price {{ color: #00ff88; font-size: 1.3em; font-weight: bold; }}
   .year, .km, .loc {{ color: #aaa; }}
   .phone {{ font-size: 1.2em; }}
+  .platform {{ background: #2d3a5e; color: #7eb8da; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; text-transform: uppercase; }}
+  .actions {{ display: flex; align-items: center; gap: 12px; margin: 8px 0; flex-wrap: wrap; }}
+  .seller-name {{ color: #e8b84a; font-size: 0.95em; }}
+  .btn {{ display: inline-block; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1em; cursor: pointer; }}
+  .btn-phone {{ background: #00cc66; color: #000; }}
+  .btn-phone:hover {{ background: #00ff88; }}
+  .btn-contact {{ background: #0088cc; color: #fff; }}
+  .btn-contact:hover {{ background: #00aaff; }}
   .pro-badge {{ background: #ff6b6b; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }}
   .suspected-badge {{ background: #f59e0b; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; }}
   .title a {{ color: #00d4ff; text-decoration: none; font-size: 1.1em; }}

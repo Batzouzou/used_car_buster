@@ -153,16 +153,25 @@ def test_build_html_splits_pro_and_particulier():
     assert "#2" in html
 
 
-def test_build_html_phone_icon():
-    """has_phone=True must show phone icon in HTML."""
+def test_build_html_phone_button():
+    """seller_phone present must show clickable phone button."""
     listings = [
-        _make_raw_listing(id="lbc_1", has_phone=True),
-        _make_raw_listing(id="lbc_2", has_phone=False),
+        _make_raw_listing(id="lbc_1", seller_phone="+33612345678"),
+        _make_raw_listing(id="lbc_2", seller_phone=None),
     ]
     html = _build_html(listings)
-    assert "&#128222;" in html  # phone emoji
-    # Only one phone icon
-    assert html.count("&#128222;") == 1
+    assert "tel:+33612345678" in html
+    assert "btn-phone" in html
+    # Only one phone link (tel:)
+    assert html.count("tel:") == 1
+
+
+def test_build_html_contact_button():
+    """Every listing must have a Contacter button."""
+    listings = [_make_raw_listing()]
+    html = _build_html(listings)
+    assert "btn-contact" in html
+    assert "Contacter" in html
 
 
 def test_build_html_pro_badge():

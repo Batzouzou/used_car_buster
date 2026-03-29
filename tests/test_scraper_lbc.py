@@ -31,9 +31,10 @@ def _make_attribute(key, value, value_label=""):
     return attr
 
 
-def _make_user(is_pro=False):
+def _make_user(is_pro=False, name="Vendeur Test"):
     user = MagicMock()
     user.is_pro = is_pro
+    user.name = name
     return user
 
 

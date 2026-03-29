@@ -19,6 +19,8 @@ class RawListing(BaseModel):
     lat: Optional[float] = None
     lon: Optional[float] = None
     seller_type: str = "unknown"
+    seller_name: Optional[str] = None
+    seller_phone: Optional[str] = None
     suspected_pro: bool = False
     has_phone: bool = False
     url: str

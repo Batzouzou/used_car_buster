@@ -99,8 +99,13 @@ class LLMClient:
 
         resp = requests.post(
             f"{LM_STUDIO_BASE_URL}/v1/chat/completions",
-            json={"model": LM_STUDIO_MODEL, "messages": lm_messages},
-            timeout=120,
+            json={
+                "model": LM_STUDIO_MODEL,
+                "messages": lm_messages,
+                "temperature": 0.1,
+                "max_tokens": 8192,
+            },
+            timeout=300,
         )
         resp.raise_for_status()
         data = resp.json()

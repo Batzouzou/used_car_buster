@@ -263,6 +263,23 @@ def main(argv: list[str] | None = None):
         pro, part = analyze_listings(listings, client)
         print(f"Shortlist: {len(pro)} pro, {len(part)} particulier")
 
+        # Save approved shortlist for pricing step
+        approved = pro + part
+        if approved:
+            from datetime import datetime as dt
+            approved_path = Path(OUTPUT_DIR) / f"approved_{dt.now().strftime('%Y%m%d')}.json"
+            approved_path.write_text(
+                json.dumps([s.model_dump() for s in approved], ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(f"Saved {len(approved)} approved to {approved_path.name}")
+
+            # Generate scored HTML
+            html_path = Path(OUTPUT_DIR) / f"shortlist_{dt.now().strftime('%Y%m%d')}.html"
+            html_path.write_text(_build_html(approved), encoding="utf-8")
+            print(f"Shortlist HTML: {html_path}")
+            os.startfile(str(html_path))
+
     elif command == "price":
         from agent_pricer import price_listings
         from llm_client import LLMClient
@@ -278,6 +295,23 @@ def main(argv: list[str] | None = None):
         client = LLMClient()
         priced = price_listings(listings, client)
         print(f"Priced {len(priced)} listings")
+
+        if priced:
+            from datetime import datetime as dt
+            priced_path = Path(OUTPUT_DIR) / f"priced_{dt.now().strftime('%Y%m%d')}.json"
+            priced_path.write_text(
+                json.dumps([p.model_dump() for p in priced], ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(f"Saved to {priced_path.name}")
+
+            # Print summary
+            for p in priced:
+                km = f"{p.mileage_km:,}km".replace(",", " ") if p.mileage_km else "?"
+                print(f"\n  {p.id}  {p.price:,} EUR  {p.year}  {km}  score:{p.score}")
+                print(f"  Marche: {p.market_estimate_low}-{p.market_estimate_high} EUR")
+                print(f"  Offre: {p.opening_offer} EUR | Max: {p.max_acceptable} EUR")
+                print(f"  Ancres: {', '.join(p.anchors[:2])}")
 
     elif command == "status":
         from state import load_state

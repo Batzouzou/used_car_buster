@@ -405,14 +405,21 @@ async def cmd_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def cmd_intervalle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     args = context.args
     if not args:
-        await update.message.reply_text("Usage: /intervalle 4h (min 1h, max 1s)\n  h=heures, j=jours, s=semaine")
+        await update.message.reply_text(
+            "Programmez la frequence de recherche automatique:\n\n"
+            "Exemples:\n"
+            "  intervalle 3h → toutes les 3 heures\n"
+            "  intervalle 1j → une fois par jour\n"
+            "  intervalle 1s → une fois par semaine\n\n"
+            "Minimum: 1h | Maximum: 1 semaine"
+        )
         return
     hours = parse_interval(args[0])
     if hours is None:
         await update.message.reply_text(f"Intervalle invalide. Min {MIN_INTERVAL_HOURS}h, max {MAX_INTERVAL_HOURS}h.")
         return
     context.application.bot_data["interval_hours"] = hours
-    await update.message.reply_text(f"Intervalle mis a jour: {hours}h")
+    await update.message.reply_text(f"Recherche automatique programmee toutes les {hours}h")
 
 
 async def cmd_statut(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -93,6 +93,21 @@ def _extract_seller_type(item: dict) -> str:
     return "private"
 
 
+def _extract_seller_name(item: dict) -> str | None:
+    """Extract seller/contact name from old or new format."""
+    seller = item.get("seller", {})
+    return seller.get("contactName") or seller.get("companyName") or None
+
+
+def _extract_seller_phone(item: dict) -> str | None:
+    """Extract seller phone from new format (phones array)."""
+    seller = item.get("seller", {})
+    phones = seller.get("phones", [])
+    if phones:
+        return phones[0].get("callTo") or phones[0].get("formattedNumber")
+    return None
+
+
 def _extract_title(item: dict) -> str:
     """Extract title from old or new format."""
     title = item.get("title", "")
@@ -140,6 +155,8 @@ def parse_autoscout_listings(listings_data: list[dict]) -> list[RawListing]:
                 lat=location.get("latitude"),
                 lon=location.get("longitude"),
                 seller_type=_extract_seller_type(item),
+                seller_name=_extract_seller_name(item),
+                seller_phone=_extract_seller_phone(item),
                 url=url,
                 description=None,
                 images=item.get("images", []),

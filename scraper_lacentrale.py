@@ -16,6 +16,12 @@ logger = logging.getLogger(__name__)
 
 LC_BASE_URL = "https://www.lacentrale.fr/listing"
 
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15",
+]
+
 CITY_COORDS_CACHE = {
     "paris": (48.8566, 2.3522), "creteil": (48.7904, 2.4628),
     "vitry-sur-seine": (48.7874, 2.3928), "ivry-sur-seine": (48.8113, 2.3842),
@@ -142,7 +148,7 @@ def scrape_lacentrale() -> list[RawListing]:
     """Scrape La Centrale for Toyota iQ listings."""
     session = requests.Session()
     session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent": random.choice(USER_AGENTS),
         "Accept": "text/html",
         "Accept-Language": "fr-FR,fr;q=0.9",
     })

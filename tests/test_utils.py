@@ -90,3 +90,24 @@ def test_distance_zone_exact_far_boundary():
 def test_distance_zone_just_over_prime():
     """20.1 km = just over PRIME → NEAR."""
     assert get_distance_zone(20.1) == "NEAR"
+
+
+def test_extract_json_fenced_json():
+    """Markdown ```json fence → extracted correctly."""
+    text = 'Here is the result:\n```json\n{"key": "value"}\n```\nDone.'
+    result = extract_json_from_text(text)
+    assert result == {"key": "value"}
+
+
+def test_extract_json_fenced_array():
+    """Markdown ``` fence around array → extracted correctly."""
+    text = 'Output:\n```\n[1, 2, 3]\n```'
+    result = extract_json_from_text(text)
+    assert result == [1, 2, 3]
+
+
+def test_extract_json_fenced_invalid_falls_through():
+    """Fenced content is not valid JSON → falls through to bracket matching."""
+    text = '```json\nnot json\n```\nBut here: {"a": 1}'
+    result = extract_json_from_text(text)
+    assert result == {"a": 1}

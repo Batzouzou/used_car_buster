@@ -44,6 +44,14 @@ def extract_json_from_text(text: str):
     except (json.JSONDecodeError, TypeError):
         pass
 
+    # Strip markdown code fences (```json ... ``` or ``` ... ```)
+    fence_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', text, re.DOTALL)
+    if fence_match:
+        try:
+            return json.loads(fence_match.group(1))
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     # Find earliest occurrence of '[' or '{' in text
     arr_idx = text.find('[')
     obj_idx = text.find('{')

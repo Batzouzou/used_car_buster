@@ -455,10 +455,10 @@ async def test_notifier_notify_shortlist_filters_by_score():
     notifier.bot = AsyncMock()
     listings = [
         _make_scored(id="lbc_high", score=85, images=["https://img.lbc.fr/1.jpg"]),
-        _make_scored(id="lbc_low", score=50, images=["https://img.lbc.fr/2.jpg"]),
+        _make_scored(id="lbc_low", score=30, images=["https://img.lbc.fr/2.jpg"]),
     ]
     await notifier.notify_shortlist(listings)
-    # Header + 1 high-score listing (send_photo), low-score filtered out
+    # Header + 1 high-score listing (send_photo), score=30 filtered out
     assert notifier.bot.send_message.call_count == 1  # header
     assert notifier.bot.send_photo.call_count == 1    # only the 85-score one
 

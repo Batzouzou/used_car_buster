@@ -100,7 +100,7 @@ def parse_interval(text: str) -> float | None:
     return hours
 
 
-SCORE_THRESHOLD = 75  # Minimum score to auto-notify
+SCORE_THRESHOLD = 50  # Minimum score to auto-notify
 
 
 def format_listing_notification(listing: ScoredListing, number: int) -> str:

@@ -118,14 +118,27 @@ def format_listing_notification(listing: ScoredListing, number: int) -> str:
     phone_line = f"\nTel: {seller_phone}" if seller_phone else ""
 
     seller_label = "Pro" if listing.seller_type == "pro" else "Particulier"
-    highlights = ", ".join(listing.highlights[:3]) if listing.highlights else ""
+
+    # Analyse detaillee
+    plus = ""
+    if listing.highlights:
+        plus = "\n+ " + ", ".join(listing.highlights[:5])
+    moins = ""
+    if listing.concerns:
+        moins = "\n- " + ", ".join(listing.concerns[:5])
+    alertes = ""
+    if listing.red_flags:
+        alertes = "\n!! " + ", ".join(listing.red_flags[:3])
+    summary = ""
+    if getattr(listing, "summary_fr", ""):
+        summary = f"\n\n{listing.summary_fr}"
 
     return (
         f"#{number} [{listing.score}/100] {listing.year} - {price_str} - {km_str}\n"
         f"{listing.title}\n"
         f"{listing.city or '?'} ({listing.department or '?'}) {dist}\n"
-        f"{seller_label}: {seller_name}{phone_line}\n"
-        f"{highlights}\n"
+        f"{seller_label}: {seller_name}{phone_line}"
+        f"{plus}{moins}{alertes}{summary}\n\n"
         f"{listing.url}"
     )
 
@@ -186,18 +199,23 @@ class TelegramNotifier:
             except Exception:
                 pass
 
-    async def notify_shortlist(self, listings: list[ScoredListing]) -> None:
-        """Send all listings with score >= SCORE_THRESHOLD to Jerome with photos."""
-        top = [l for l in listings if l.score >= SCORE_THRESHOLD]
+    async def notify_shortlist(self, listings: list[ScoredListing], max_results: int = 10) -> None:
+        """Send top listings (score >= SCORE_THRESHOLD, max 10) to Jerome with full analysis."""
+        top = sorted(
+            [l for l in listings if l.score >= SCORE_THRESHOLD],
+            key=lambda x: x.score, reverse=True,
+        )[:max_results]
+
         if not top:
-            await self.send_to_jerome("Aucune annonce au-dessus de 75/100 cette fois.")
+            await self.send_to_jerome("Aucune annonce au-dessus de 50/100 cette fois.")
             return
 
         await self.send_to_jerome(
-            f"Toyota iQ Auto - {len(top)} annonces score >= {SCORE_THRESHOLD}\n"
-            f"Recherche du {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            f"Toyota iQ Auto - TOP {len(top)} annonces\n"
+            f"Recherche du {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
+            f"Score minimum: {SCORE_THRESHOLD}/100"
         )
-        for i, listing in enumerate(sorted(top, key=lambda x: x.score, reverse=True), 1):
+        for i, listing in enumerate(top, 1):
             await self.send_listing_with_photo(self.jerome_chat_id, listing, i)
 
     async def delete_sent_messages(self, chat_id: str) -> int:

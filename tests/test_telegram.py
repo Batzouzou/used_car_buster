@@ -5,9 +5,11 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from models import ScoredListing, ScoreBreakdown
 from telegram_bot import (
     format_listing_telegram,
+    format_listing_notification,
     format_shortlist_telegram,
     parse_interval,
     TelegramNotifier,
+    SCORE_THRESHOLD,
     build_application,
     cmd_demarrer,
     cmd_approuver,
@@ -172,13 +174,13 @@ async def test_cmd_intervalle_invalid():
 
 
 @pytest.mark.asyncio
-async def test_cmd_liste_no_data():
+async def test_cmd_liste_no_data(tmp_path):
     update = MagicMock()
     update.message = MagicMock()
     update.message.reply_text = AsyncMock()
     context = MagicMock()
-    context.application.bot_data = {}
-    await cmd_liste(update, context)
+    with patch("telegram_bot.OUTPUT_DIR", str(tmp_path)):
+        await cmd_liste(update, context)
     text = update.message.reply_text.call_args[0][0]
     assert "Pas de shortlist" in text
 
@@ -211,14 +213,22 @@ def test_format_listing_telegram_empty_highlights():
 
 
 @pytest.mark.asyncio
-async def test_cmd_chercher():
+async def test_cmd_chercher_runs_pipeline():
     update = MagicMock()
     update.message = MagicMock()
     update.message.reply_text = AsyncMock()
     context = MagicMock()
     context.application.bot_data = {}
-    await cmd_chercher(update, context)
-    assert context.application.bot_data.get("pending_search") is True
+
+    with patch("scraper_lbc.scrape_leboncoin", return_value=[]), \
+         patch("scraper_lacentrale.scrape_lacentrale", return_value=[]), \
+         patch("scraper_leparking.scrape_leparking", return_value=[]), \
+         patch("scraper_autoscout.scrape_autoscout24", return_value=[]), \
+         patch("agent_analyst.analyze_listings", return_value=([], [])), \
+         patch("llm_client.LLMClient"):
+        await cmd_chercher(update, context)
+    # Should have sent at least "scrape termine" and "analyse terminee"
+    assert update.message.reply_text.call_count >= 3
 
 
 @pytest.mark.asyncio
@@ -246,15 +256,16 @@ async def test_cmd_details_no_args():
 
 
 @pytest.mark.asyncio
-async def test_cmd_details_with_number():
+async def test_cmd_details_no_shortlist(tmp_path):
     update = MagicMock()
     update.message = MagicMock()
     update.message.reply_text = AsyncMock()
     context = MagicMock()
-    context.args = ["3"]
-    await cmd_details(update, context)
+    context.args = ["1"]
+    with patch("telegram_bot.OUTPUT_DIR", str(tmp_path)):
+        await cmd_details(update, context)
     text = update.message.reply_text.call_args[0][0]
-    assert "#3" in text
+    assert "Pas de shortlist" in text
 
 
 def test_parse_interval_at_min_boundary():
@@ -385,3 +396,78 @@ async def test_cmd_rejeter_invalid_numbers():
     await cmd_rejeter(update, context)
     text = update.message.reply_text.call_args[0][0]
     assert "invalide" in text.lower()
+
+
+# --- New tests: notification with photos ---
+
+def test_format_listing_notification():
+    listing = _make_scored(seller_name="Jean Dupont", seller_phone="+33612345678")
+    text = format_listing_notification(listing, 1)
+    assert "#1" in text
+    assert "78/100" in text
+    assert "3 200 EUR" in text
+    assert "Vitry" in text
+    assert "Jean Dupont" in text
+    assert "+33612345678" in text
+    assert "http://x.com/listing" in text
+
+
+def test_format_listing_notification_no_phone():
+    listing = _make_scored()
+    text = format_listing_notification(listing, 2)
+    assert "Tel:" not in text
+
+
+@pytest.mark.asyncio
+async def test_notifier_send_listing_with_photo():
+    notifier = TelegramNotifier(token="fake", friend_chat_id="123", jerome_chat_id="456")
+    notifier.bot = AsyncMock()
+    listing = _make_scored(images=["https://img.lbc.fr/1.jpg"])
+    await notifier.send_listing_with_photo("456", listing, 1)
+    notifier.bot.send_photo.assert_called_once()
+    call_kwargs = notifier.bot.send_photo.call_args
+    assert call_kwargs.kwargs["photo"] == "https://img.lbc.fr/1.jpg"
+
+
+@pytest.mark.asyncio
+async def test_notifier_send_listing_no_photo():
+    notifier = TelegramNotifier(token="fake", friend_chat_id="123", jerome_chat_id="456")
+    notifier.bot = AsyncMock()
+    listing = _make_scored(images=[])
+    await notifier.send_listing_with_photo("456", listing, 1)
+    notifier.bot.send_message.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_notifier_send_listing_photo_fails_falls_back():
+    """If send_photo fails, fall back to send_message."""
+    notifier = TelegramNotifier(token="fake", friend_chat_id="123", jerome_chat_id="456")
+    notifier.bot = AsyncMock()
+    notifier.bot.send_photo.side_effect = Exception("photo failed")
+    listing = _make_scored(images=["https://img.lbc.fr/1.jpg"])
+    await notifier.send_listing_with_photo("456", listing, 1)
+    notifier.bot.send_message.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_notifier_notify_shortlist_filters_by_score():
+    notifier = TelegramNotifier(token="fake", friend_chat_id="123", jerome_chat_id="456")
+    notifier.bot = AsyncMock()
+    listings = [
+        _make_scored(id="lbc_high", score=85, images=["https://img.lbc.fr/1.jpg"]),
+        _make_scored(id="lbc_low", score=50, images=["https://img.lbc.fr/2.jpg"]),
+    ]
+    await notifier.notify_shortlist(listings)
+    # Header + 1 high-score listing (send_photo), low-score filtered out
+    assert notifier.bot.send_message.call_count == 1  # header
+    assert notifier.bot.send_photo.call_count == 1    # only the 85-score one
+
+
+@pytest.mark.asyncio
+async def test_notifier_notify_shortlist_empty():
+    notifier = TelegramNotifier(token="fake", friend_chat_id="123", jerome_chat_id="456")
+    notifier.bot = AsyncMock()
+    await notifier.notify_shortlist([])
+    notifier.bot.send_message.assert_called_once()
+    text = notifier.bot.send_message.call_args.kwargs.get("text", notifier.bot.send_message.call_args[1].get("text", ""))
+    assert "Aucune" in text

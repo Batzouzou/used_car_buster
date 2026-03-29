@@ -1,4 +1,4 @@
-"""Unified LLM client: Ollama (local) + Anthropic (cloud) with auto-fallback."""
+"""Unified LLM client: LM Studio (local) + Anthropic (cloud) with auto-fallback."""
 import logging
 import time
 from dataclasses import dataclass
@@ -8,13 +8,13 @@ import anthropic
 import requests
 
 from config import (
-    ANTHROPIC_API_KEY, OLLAMA_BASE_URL, OLLAMA_MODEL, LLM_MAX_RETRIES,
+    ANTHROPIC_API_KEY, LM_STUDIO_BASE_URL, LM_STUDIO_MODEL, LLM_MAX_RETRIES,
 )
 
 logger = logging.getLogger(__name__)
 
 FALLBACK_CHAINS = {
-    "local": ["ollama", "claude-haiku-4-5-20251001", "claude-sonnet-4-20250514"],
+    "local": ["lm_studio", "claude-haiku-4-5-20251001", "claude-sonnet-4-20250514"],
     "haiku": ["claude-haiku-4-5-20251001", "claude-sonnet-4-20250514"],
     "sonnet": ["claude-sonnet-4-20250514"],
 }
@@ -28,7 +28,7 @@ class LLMResponse:
 
 
 class LLMClient:
-    """Unified interface for Ollama and Anthropic models."""
+    """Unified interface for LM Studio and Anthropic models."""
 
     def __init__(self):
         self._anthropic_client = None
@@ -48,8 +48,8 @@ class LLMClient:
         for model in chain:
             for attempt in range(LLM_MAX_RETRIES + 1):
                 try:
-                    if model == "ollama":
-                        return self._query_ollama(messages, system)
+                    if model == "lm_studio":
+                        return self._query_lm_studio(messages, system)
                     else:
                         return self._query_anthropic(messages, model, system)
                 except Exception as e:
@@ -88,25 +88,25 @@ class LLMClient:
             "raw": response,
         }
 
-    def _query_ollama(
+    def _query_lm_studio(
         self, messages: list[dict], system: str | None = None
     ) -> LLMResponse:
-        """Query Ollama local LLM via /api/chat endpoint."""
-        ollama_messages = []
+        """Query LM Studio local LLM via OpenAI-compatible /v1/chat/completions."""
+        lm_messages = []
         if system:
-            ollama_messages.append({"role": "system", "content": system})
-        ollama_messages.extend(messages)
+            lm_messages.append({"role": "system", "content": system})
+        lm_messages.extend(messages)
 
         resp = requests.post(
-            f"{OLLAMA_BASE_URL}/api/chat",
-            json={"model": OLLAMA_MODEL, "messages": ollama_messages, "stream": False},
+            f"{LM_STUDIO_BASE_URL}/v1/chat/completions",
+            json={"model": LM_STUDIO_MODEL, "messages": lm_messages},
             timeout=120,
         )
         resp.raise_for_status()
         data = resp.json()
         return LLMResponse(
-            text=data["message"]["content"],
-            model_used="ollama",
+            text=data["choices"][0]["message"]["content"],
+            model_used="lm_studio",
             raw=data,
         )
 

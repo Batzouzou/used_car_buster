@@ -3,20 +3,20 @@ from unittest.mock import patch, MagicMock
 from llm_client import LLMClient, LLMResponse
 
 def test_llm_response_model():
-    r = LLMResponse(text="hello", model_used="ollama", raw=None)
+    r = LLMResponse(text="hello", model_used="lm_studio", raw=None)
     assert r.text == "hello"
-    assert r.model_used == "ollama"
+    assert r.model_used == "lm_studio"
 
 def test_client_init():
     client = LLMClient()
     assert client is not None
 
 @patch("llm_client.requests.post")
-def test_query_ollama_success(mock_post):
+def test_query_lm_studio_success(mock_post):
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.json.return_value = {
-        "message": {"content": '{"score": 75}'}
+        "choices": [{"message": {"content": '{"score": 75}'}}]
     }
     mock_resp.raise_for_status = MagicMock()
     mock_post.return_value = mock_resp
@@ -27,11 +27,11 @@ def test_query_ollama_success(mock_post):
         model_preference="local",
     )
     assert result.text == '{"score": 75}'
-    assert result.model_used == "ollama"
+    assert result.model_used == "lm_studio"
 
 @patch("llm_client.requests.post")
-def test_query_ollama_fallback_to_haiku(mock_post):
-    mock_post.side_effect = Exception("Ollama down")
+def test_query_lm_studio_fallback_to_haiku(mock_post):
+    mock_post.side_effect = Exception("LM Studio down")
 
     client = LLMClient()
     with patch.object(client, "_query_anthropic") as mock_anthropic:
@@ -69,7 +69,7 @@ def test_query_with_tools_sonnet():
 @patch("llm_client.requests.post")
 def test_query_all_models_fail_raises(mock_post):
     """All models in chain fail → RuntimeError."""
-    mock_post.side_effect = Exception("Ollama down")
+    mock_post.side_effect = Exception("LM Studio down")
     client = LLMClient()
     client._anthropic_client = None  # no anthropic fallback
     with pytest.raises(RuntimeError, match="All LLM models failed"):
@@ -91,10 +91,10 @@ def test_query_with_tools_no_api_key():
 
 
 @patch("llm_client.requests.post")
-def test_query_ollama_with_system_prompt(mock_post):
-    """System prompt is prepended as system message for Ollama."""
+def test_query_lm_studio_with_system_prompt(mock_post):
+    """System prompt is prepended as system message for LM Studio."""
     mock_resp = MagicMock()
-    mock_resp.json.return_value = {"message": {"content": "ok"}}
+    mock_resp.json.return_value = {"choices": [{"message": {"content": "ok"}}]}
     mock_resp.raise_for_status = MagicMock()
     mock_post.return_value = mock_resp
 

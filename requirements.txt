@@ -1,5 +1,6 @@
 requests
 beautifulsoup4
+lbc
 anthropic
 pydantic>=2.0
 python-dotenv

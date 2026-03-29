@@ -306,7 +306,7 @@ async def test_cmd_intervalle_no_args():
     context.args = []
     await cmd_intervalle(update, context)
     text = update.message.reply_text.call_args[0][0]
-    assert "Usage" in text
+    assert "frequence" in text.lower()
 
 
 @pytest.mark.asyncio

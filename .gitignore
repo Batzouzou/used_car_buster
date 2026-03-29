@@ -6,3 +6,9 @@ __pycache__/
 .pytest_cache/
 .coverage
 .claude/
+IQ_SESSION_RECOVERY_*.md
+SYSTEM_SPEC*.md
+_PLAN_agentique_v3.md
+maping_lbc.xlsx
+files/
+scraper_lbc - Copy.py

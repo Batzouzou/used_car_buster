@@ -114,12 +114,23 @@ def main(argv: list[str] | None = None):
         print(f"  AS: {len(asc)} listings")
 
         all_listings = lbc + lc + lp + asc
+        # Dedup by (title_lower, price, year, city_lower) — same logic as supervisor
+        seen = set()
+        deduped = []
+        for l in all_listings:
+            key = (l.title.lower().strip(), l.price, l.year, (l.city or "").lower().strip())
+            if key not in seen:
+                seen.add(key)
+                deduped.append(l)
+        removed = len(all_listings) - len(deduped)
+        if removed:
+            print(f"  Dedup: removed {removed} duplicates")
         output = Path(OUTPUT_DIR) / f"raw_listings_{datetime.now().strftime('%Y%m%d')}.json"
         output.write_text(
-            json.dumps([l.model_dump() for l in all_listings], ensure_ascii=False, indent=2),
+            json.dumps([l.model_dump() for l in deduped], ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-        print(f"Saved {len(all_listings)} listings to {output}")
+        print(f"Saved {len(deduped)} listings to {output}")
 
     elif command == "analyze":
         from agent_analyst import analyze_listings
@@ -143,7 +154,7 @@ def main(argv: list[str] | None = None):
         from llm_client import LLMClient
         from models import ScoredListing
 
-        files = sorted(Path(OUTPUT_DIR).glob("shortlist_approved_*.json"), reverse=True)
+        files = sorted(Path(OUTPUT_DIR).glob("approved_*.json"), reverse=True)
         if not files:
             print("No approved shortlist found. Run full pipeline first.")
             return

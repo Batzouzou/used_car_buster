@@ -352,6 +352,7 @@ def test_execute_tool_dispatch_pricer_success():
     mock_scored = MagicMock()
     mock_scored.id = "lbc_1"
     mock_scored.seller_type = "pro"
+    mock_scored.model_dump.return_value = {"id": "lbc_1", "seller_type": "pro"}
 
     agent._shortlist_pro = [mock_scored]
     agent._shortlist_part = []

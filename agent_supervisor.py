@@ -341,6 +341,13 @@ def _tool_pricer(tool_input: dict, agent: SupervisorAgent) -> str:
     if not to_price:
         return json.dumps({"error": "No matching listings found for the given IDs."})
 
+    # Save approved shortlist so CLI `price` command can re-use it
+    approved_path = Path(OUTPUT_DIR) / f"approved_{datetime.now().strftime('%Y%m%d')}.json"
+    approved_path.write_text(
+        json.dumps([s.model_dump() for s in to_price], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     priced = price_listings(to_price, agent.llm)
 
     output_path = Path(OUTPUT_DIR) / f"priced_{datetime.now().strftime('%Y%m%d')}.json"

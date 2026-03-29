@@ -42,7 +42,7 @@ def test_scrape_leboncoin_returns_listings(mock_session_cls):
     mock_resp.status_code = 200
     mock_resp.json.return_value = load_fixture()
     mock_resp.raise_for_status = MagicMock()
-    mock_session.get.return_value = mock_resp
+    mock_session.post.return_value = mock_resp
     mock_session_cls.return_value = mock_session
 
     listings = scrape_leboncoin()
@@ -110,7 +110,7 @@ def test_scrape_leboncoin_pagination(mock_session_cls):
     mock_resp2 = MagicMock()
     mock_resp2.json.return_value = page2_data
     mock_resp2.raise_for_status = MagicMock()
-    mock_session.get.side_effect = [mock_resp1, mock_resp2]
+    mock_session.post.side_effect = [mock_resp1, mock_resp2]
     mock_session_cls.return_value = mock_session
 
     listings = scrape_leboncoin()
@@ -127,7 +127,7 @@ def test_scrape_leboncoin_http_403_uses_fallback(mock_session_cls):
     mock_resp.raise_for_status.side_effect = real_requests.exceptions.HTTPError(
         response=mock_resp
     )
-    mock_session.get.return_value = mock_resp
+    mock_session.post.return_value = mock_resp
     mock_session_cls.return_value = mock_session
 
     listings = scrape_leboncoin()
@@ -154,7 +154,7 @@ def test_scrape_leboncoin_pagination_empty_page_breaks(mock_session_cls):
     mock_resp2 = MagicMock()
     mock_resp2.json.return_value = page2_data
     mock_resp2.raise_for_status = MagicMock()
-    mock_session.get.side_effect = [mock_resp1, mock_resp2]
+    mock_session.post.side_effect = [mock_resp1, mock_resp2]
     mock_session_cls.return_value = mock_session
 
     listings = scrape_leboncoin()
@@ -171,7 +171,7 @@ def test_scrape_leboncoin_http_500_logs_error(mock_session_cls):
     mock_resp.raise_for_status.side_effect = real_requests.exceptions.HTTPError(
         response=mock_resp
     )
-    mock_session.get.return_value = mock_resp
+    mock_session.post.return_value = mock_resp
     mock_session_cls.return_value = mock_session
 
     listings = scrape_leboncoin()
@@ -187,7 +187,7 @@ def test_scrape_leboncoin_http_error_no_response(mock_session_cls):
     mock_resp.raise_for_status.side_effect = real_requests.exceptions.HTTPError(
         response=None
     )
-    mock_session.get.return_value = mock_resp
+    mock_session.post.return_value = mock_resp
     mock_session_cls.return_value = mock_session
 
     listings = scrape_leboncoin()
@@ -198,7 +198,7 @@ def test_scrape_leboncoin_http_error_no_response(mock_session_cls):
 def test_scrape_leboncoin_generic_exception(mock_session_cls):
     """Non-HTTP exception (e.g., ConnectionError) → logged, empty list."""
     mock_session = MagicMock()
-    mock_session.get.side_effect = ConnectionError("DNS resolution failed")
+    mock_session.post.side_effect = ConnectionError("DNS resolution failed")
     mock_session_cls.return_value = mock_session
 
     listings = scrape_leboncoin()

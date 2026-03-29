@@ -190,9 +190,9 @@ class TelegramNotifier:
 
         # Build inline keyboard buttons
         buttons = []
-        buttons.append([InlineKeyboardButton("🔗 Voir l'annonce", url=listing.url)])
+        buttons.append([InlineKeyboardButton("🚗 ➤ VOIR L'ANNONCE ➤ 🚗", url=listing.url)])
         if phone:
-            buttons.append([InlineKeyboardButton(f"📞 Appeler {phone}", url=f"tel:{phone}")])
+            buttons.append([InlineKeyboardButton(f"📞 APPELER : {phone}", url=f"tel:{phone}")])
         keyboard = InlineKeyboardMarkup(buttons)
 
         try:

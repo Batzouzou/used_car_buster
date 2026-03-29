@@ -250,11 +250,14 @@ def _get_notifier() -> TelegramNotifier:
 
 async def cmd_demarrer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Bienvenue sur le bot Toyota iQ ! 🚗✨\n\n"
-        "Ce bot cherche automatiquement les meilleures Toyota iQ "
-        "automatiques en France et vous envoie les resultats "
-        "avec photos, prix et analyse !\n\n"
-        "Tapez un mot et appuyez sur Envoyer "
+        "🚗✨ Bienvenue sur cet outil magnifique et transcendantal "
+        "qui vous livrera la iQ de vos reves, au meilleur prix ! ✨🚗\n\n"
+        "🤖 Ce bot parcourt LeBonCoin et AutoScout24 a votre place, "
+        "analyse chaque annonce, note les points forts et les pieges, "
+        "et vous envoie uniquement la creme de la creme avec photos 📸\n\n"
+        "Plus besoin de passer des heures a scroller — "
+        "asseyez-vous, on s'occupe de tout 😎🏖️\n\n"
+        "Pour commencer : tapez un mot et appuyez sur Envoyer "
         "(comme si vous envoyiez des bisous a Joanna 😘💖)"
     )
     await update.message.reply_text(

@@ -1,12 +1,14 @@
-"""LeBonCoin scraper with API + fallback chain."""
+"""LeBonCoin scraper with API + HTML fallback (front-end URL pattern)."""
+import json
 import logging
 import random
 import time
 from datetime import datetime, timezone
 
 import requests
+from bs4 import BeautifulSoup
 
-from config import SEARCH_CRITERIA
+from config import SEARCH_CRITERIA, ORLY_LAT, ORLY_LON
 from models import RawListing
 
 logger = logging.getLogger(__name__)
@@ -18,6 +20,7 @@ USER_AGENTS = [
 ]
 
 LBC_API_URL = "https://api.leboncoin.fr/finder/search"
+LBC_SEARCH_URL = "https://www.leboncoin.fr/recherche"
 LBC_GEARBOX_MAP = {"1": "manual", "2": "auto"}
 
 
@@ -143,8 +146,69 @@ def scrape_leboncoin() -> list[RawListing]:
     return all_listings
 
 
+def _build_search_url() -> str:
+    """Build LBC front-end search URL from criteria and Orly reference point."""
+    make = SEARCH_CRITERIA["make"].upper()
+    model = SEARCH_CRITERIA["model"]
+    # Location format: city_zip_lat_lon_locID_radiusMeters
+    # 200000m = 200km radius from Orly to cover Ile-de-France + surroundings
+    location = f"Orly_94310_{ORLY_LAT}_{ORLY_LON}_0_200000"
+    params = (
+        f"?category=2"
+        f"&locations={location}"
+        f"&u_car_brand={make}"
+        f"&_u_car_model={make}_{model}"
+        f"&gearbox=2"
+    )
+    return f"{LBC_SEARCH_URL}{params}"
+
+
+def _parse_nextdata_ads(html: str) -> list[dict]:
+    """Extract ad list from LBC __NEXT_DATA__ JSON in HTML."""
+    soup = BeautifulSoup(html, "html.parser")
+    script_tag = soup.find("script", id="__NEXT_DATA__")
+    if not script_tag or not script_tag.string:
+        return []
+    try:
+        data = json.loads(script_tag.string)
+        # LBC Next.js structure: props.pageProps.searchData.ads
+        ads = (
+            data.get("props", {})
+            .get("pageProps", {})
+            .get("searchData", {})
+            .get("ads", [])
+        )
+        if isinstance(ads, list):
+            return ads
+        # Alternative path: props.pageProps.ads
+        ads = data.get("props", {}).get("pageProps", {}).get("ads", [])
+        return ads if isinstance(ads, list) else []
+    except (json.JSONDecodeError, AttributeError):
+        return []
+
+
 def _scrape_lbc_fallback(session: requests.Session) -> list[RawListing]:
-    """Fallback: scrape LBC via HTML / __NEXT_DATA__ JSON."""
+    """Fallback: scrape LBC via front-end HTML + __NEXT_DATA__ JSON."""
     logger.info("LBC fallback: attempting HTML scrape")
-    logger.warning("LBC HTML fallback not yet implemented")
-    return []
+    try:
+        url = _build_search_url()
+        session.headers.update({
+            "Accept": "text/html",
+            "Content-Type": "",
+        })
+        session.headers.pop("api_key", None)
+        time.sleep(random.uniform(2, 5))
+        resp = session.get(url, timeout=30)
+        resp.raise_for_status()
+
+        ads = _parse_nextdata_ads(resp.text)
+        if not ads:
+            logger.warning("LBC fallback: no __NEXT_DATA__ ads found")
+            return []
+
+        listings = parse_lbc_listings(ads)
+        logger.info(f"LBC fallback: scraped {len(listings)} listings")
+        return listings
+    except Exception as e:
+        logger.error(f"LBC fallback failed: {e}")
+        return []

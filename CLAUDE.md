@@ -1,5 +1,7 @@
 # CLAUDE.md — Toyota iQ Agentic Car Search System
 
+load /skills/00_SKILLS_INDEX.md at session start
+
 ## PROJET SÉPARÉ
 **Ce projet n'a RIEN à voir avec My Gateway Premium (MGP).**
 - Ne JAMAIS mélanger les deux projets

@@ -199,7 +199,7 @@ class TelegramNotifier:
             except Exception:
                 pass
 
-    async def notify_shortlist(self, listings: list[ScoredListing], max_results: int = 10) -> None:
+    async def notify_shortlist(self, listings: list[ScoredListing], max_results: int = 5) -> None:
         """Send top listings (score >= SCORE_THRESHOLD, max 10) to Jerome with full analysis."""
         top = sorted(
             [l for l in listings if l.score >= SCORE_THRESHOLD],
@@ -210,12 +210,14 @@ class TelegramNotifier:
             await self.send_to_jerome("Aucune annonce au-dessus de 50/100 cette fois.")
             return
 
-        await self.send_to_jerome(
+        header = (
             f"Toyota iQ Auto - TOP {len(top)} annonces\n"
             f"Recherche du {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
             f"Score minimum: {SCORE_THRESHOLD}/100"
         )
+        await self.send_to_both(header)
         for i, listing in enumerate(top, 1):
+            await self.send_listing_with_photo(self.friend_chat_id, listing, i)
             await self.send_listing_with_photo(self.jerome_chat_id, listing, i)
 
     async def delete_sent_messages(self, chat_id: str) -> int:
@@ -424,12 +426,16 @@ async def cmd_intervalle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     args = context.args
     if not args:
         await update.message.reply_text(
-            "Programmez la frequence de recherche automatique:\n\n"
-            "Exemples:\n"
-            "  intervalle 3h → toutes les 3 heures\n"
-            "  intervalle 1j → une fois par jour\n"
-            "  intervalle 1s → une fois par semaine\n\n"
-            "Minimum: 1h | Maximum: 1 semaine"
+            "Comment programmer la recherche automatique ?\n\n"
+            "C'est simple : tapez le mot 'intervalle' suivi du delai souhaite, "
+            "puis appuyez sur Envoyer (comme un message normal).\n\n"
+            "Exemple : pour une recherche toutes les 2 heures, envoyez :\n"
+            "intervalle 2h\n\n"
+            "Autres exemples :\n"
+            "  intervalle 4h  = toutes les 4 heures\n"
+            "  intervalle 1j  = une fois par jour\n"
+            "  intervalle 1s  = une fois par semaine\n\n"
+            "Minimum : 1 heure | Maximum : 1 semaine"
         )
         return
     hours = parse_interval(args[0])
@@ -530,12 +536,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await cmd_intervalle(update, context)
     else:
         await update.message.reply_text(
-            "Commandes disponibles:\n"
-            "chercher - Lancer une recherche\n"
-            "liste - Voir la shortlist\n"
-            "details 3 - Details annonce #3\n"
-            "approuver 1,3 - Approuver\n"
-            "rejeter 2 - Rejeter\n"
-            "effacer - Supprimer messages\n"
-            "statut - Etat du pipeline"
+            "Tapez un de ces mots et appuyez sur Envoyer :\n\n"
+            "chercher → Lancer une nouvelle recherche\n"
+            "liste → Revoir les meilleures annonces\n"
+            "details 3 → Voir toutes les photos de l'annonce #3\n"
+            "approuver 1,3 → Garder les annonces #1 et #3\n"
+            "rejeter 2 → Supprimer l'annonce #2\n"
+            "effacer → Nettoyer les messages du bot\n"
+            "intervalle → Programmer la recherche automatique\n"
+            "statut → Voir ou en est la recherche"
         )

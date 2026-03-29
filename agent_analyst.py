@@ -114,7 +114,7 @@ def _score_batch(
 def analyze_listings(
     listings: list[RawListing],
     client: LLMClient,
-    top_n: int = 10,
+    top_n: int = 5,
 ) -> tuple[list[ScoredListing], list[ScoredListing]]:
     """Score listings via LLM in batches, return (shortlist_pro, shortlist_part)."""
     if not listings:

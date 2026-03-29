@@ -304,12 +304,15 @@ async def cmd_demarrer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "📍 Ville + distance d'Orly\n"
         "👤 Vendeur + 📞 telephone si dispo\n"
         "👍 Points forts | 👎 Points faibles\n"
-        "🔗 Lien direct vers l'annonce"
+        "🔗 Lien direct vers l'annonce\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🤖 Bot Tarek IQ v0.2.0\n"
+        "Bonne route et bonne chasse ! 🚗💨"
     )
 
 
 async def cmd_chercher(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Lancement de la recherche... Patience (scrape + analyse ~3 min).")
+    await update.message.reply_text("🔍 C'est parti ! Je fouille LeBonCoin et AutoScout24 pour vous... 🕵️‍♂️\nPatience, ca prend 2-3 minutes ☕")
 
     try:
         # Scrape
@@ -329,7 +332,7 @@ async def cmd_chercher(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 seen.add(key)
                 deduped.append(l)
 
-        await update.message.reply_text(f"Scrape termine: {len(deduped)} annonces trouvees. Analyse en cours...")
+        await update.message.reply_text(f"🎣 {len(deduped)} annonces trouvees ! J'analyse tout ca... 🧠")
 
         # Save raw
         raw_path = Path(OUTPUT_DIR) / f"raw_listings_{datetime.now().strftime('%Y%m%d')}.json"
@@ -338,12 +341,29 @@ async def cmd_chercher(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             encoding="utf-8",
         )
 
-        # Analyze
+        # Analyze (run in thread to keep Telegram responsive)
         from agent_analyst import analyze_listings
         from llm_client import LLMClient
+        import asyncio, concurrent.futures
 
         client = LLMClient()
-        pro, part = analyze_listings(deduped, client)
+        loop = asyncio.get_event_loop()
+
+        # Send patience message after 30s
+        async def _send_patience():
+            await asyncio.sleep(30)
+            try:
+                await update.message.reply_text("⏳ Bougez pas, ca vient... l'IA mouline ! 🤖💭")
+            except Exception:
+                pass
+        patience_task = asyncio.create_task(_send_patience())
+
+        # Run blocking analysis in thread pool
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            pro, part = await loop.run_in_executor(
+                pool, lambda: analyze_listings(deduped, client)
+            )
+        patience_task.cancel()
         approved = pro + part
 
         # Save approved
@@ -359,7 +379,9 @@ async def cmd_chercher(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         context.application.bot_data["last_part"] = part
 
         await update.message.reply_text(
-            f"Analyse terminee: {len(pro)} pro + {len(part)} particuliers"
+            f"✅ Analyse terminee !\n"
+            f"🏪 {len(pro)} pro + 🙋 {len(part)} particuliers\n"
+            f"Voici le TOP — bonne chasse ! 🎯"
         )
 
         # Auto-send top listings with photos
@@ -489,7 +511,7 @@ async def cmd_intervalle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text(f"Intervalle invalide. Min {MIN_INTERVAL_HOURS}h, max {MAX_INTERVAL_HOURS}h.")
         return
     context.application.bot_data["interval_hours"] = hours
-    await update.message.reply_text(f"Recherche automatique programmee toutes les {hours}h")
+    await update.message.reply_text(f"⏰ C'est programme ! Recherche automatique toutes les {hours}h 🔄\nJe vous previens des que je trouve quelque chose 📬")
 
 
 async def cmd_statut(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

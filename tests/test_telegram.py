@@ -409,7 +409,7 @@ def test_format_listing_notification():
     assert "Vitry" in text
     assert "Jean Dupont" in text
     assert "+33612345678" in text
-    assert "http://x.com/listing" in text
+    assert "LBC" in text  # platform tag
 
 
 def test_format_listing_notification_no_phone():

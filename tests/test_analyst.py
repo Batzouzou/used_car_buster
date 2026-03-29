@@ -56,7 +56,7 @@ def test_analyze_listings_splits_pro_and_private():
 def test_analyze_excludes_manual():
     mock_client = MagicMock()
     mock_client.query.return_value = LLMResponse(
-        text='[{"id":"lbc_1","score":-1,"score_breakdown":{"price":0,"mileage":0,"year":0,"proximity":0,"condition":0,"transmission":-100},"excluded":true,"exclusion_reason":"Manual transmission","red_flags":["manual"],"highlights":[],"concerns":[],"summary_fr":"Exclue"}]',
+        text='[{"id":"lbc_1","score":-1,"score_breakdown":{"price":0,"mileage":0,"year":0,"proximity":0,"condition":0,"transmission":-1},"excluded":true,"exclusion_reason":"Manual transmission","red_flags":["manual"],"highlights":[],"concerns":[],"summary_fr":"Exclue"}]',
         model_used="lm_studio",
         raw=None,
     )

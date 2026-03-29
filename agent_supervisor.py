@@ -421,17 +421,23 @@ def _tool_notify_telegram(tool_input: dict, agent: SupervisorAgent) -> str:
 
     message = tool_input.get("message", "")
     target = tool_input.get("target", "both")
-    notifier = TelegramNotifier()
+
+    if not hasattr(agent, "_notifier") or agent._notifier is None:
+        agent._notifier = TelegramNotifier()
 
     try:
-        loop = asyncio.new_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
         if target == "friend":
-            loop.run_until_complete(notifier.send_to_friend(message))
+            loop.run_until_complete(agent._notifier.send_to_friend(message))
         elif target == "jerome":
-            loop.run_until_complete(notifier.send_to_jerome(message))
+            loop.run_until_complete(agent._notifier.send_to_jerome(message))
         else:
-            loop.run_until_complete(notifier.send_to_both(message))
-        loop.close()
+            loop.run_until_complete(agent._notifier.send_to_both(message))
         return json.dumps({"status": "sent", "target": target})
     except Exception as e:
         logger.error(f"Telegram notification failed: {e}")

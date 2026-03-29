@@ -32,7 +32,7 @@ class ScoreBreakdown(BaseModel):
     year: int = Field(ge=0, le=15)
     proximity: int = Field(ge=0, le=15)
     condition: int = Field(ge=-10, le=10)
-    transmission: int = Field(ge=-100, le=10)
+    transmission: int = Field(ge=-1, le=10)
 
     @field_validator("condition", mode="before")
     @classmethod

@@ -138,6 +138,7 @@ class TelegramNotifier:
         self.friend_chat_id = friend_chat_id or TELEGRAM_FRIEND_CHAT_ID
         self.jerome_chat_id = jerome_chat_id or TELEGRAM_JEROME_CHAT_ID
         self.bot = Bot(token=self.token) if self.token else None
+        self.sent_message_ids: dict[str, list[int]] = {}  # chat_id → [msg_ids]
 
     async def send_to_friend(self, text: str) -> None:
         if self.bot and self.friend_chat_id:
@@ -146,10 +147,16 @@ class TelegramNotifier:
             except Exception as e:
                 logger.error(f"Echec envoi ami: {e}")
 
+    def _track(self, chat_id: str, msg) -> None:
+        """Track sent message ID for later cleanup."""
+        if msg and hasattr(msg, "message_id"):
+            self.sent_message_ids.setdefault(chat_id, []).append(msg.message_id)
+
     async def send_to_jerome(self, text: str) -> None:
         if self.bot and self.jerome_chat_id:
             try:
-                await self.bot.send_message(chat_id=self.jerome_chat_id, text=text)
+                msg = await self.bot.send_message(chat_id=self.jerome_chat_id, text=text)
+                self._track(self.jerome_chat_id, msg)
             except Exception as e:
                 logger.error(f"Echec envoi Jerome: {e}")
 
@@ -166,11 +173,12 @@ class TelegramNotifier:
 
         try:
             if photo_url:
-                await self.bot.send_photo(
+                msg = await self.bot.send_photo(
                     chat_id=chat_id, photo=photo_url, caption=caption,
                 )
             else:
-                await self.bot.send_message(chat_id=chat_id, text=caption)
+                msg = await self.bot.send_message(chat_id=chat_id, text=caption)
+            self._track(chat_id, msg)
         except Exception as e:
             logger.error(f"Echec envoi listing {listing.id}: {e}")
             try:
@@ -192,6 +200,31 @@ class TelegramNotifier:
         for i, listing in enumerate(sorted(top, key=lambda x: x.score, reverse=True), 1):
             await self.send_listing_with_photo(self.jerome_chat_id, listing, i)
 
+    async def delete_sent_messages(self, chat_id: str) -> int:
+        """Delete all tracked messages in a chat. Returns count deleted."""
+        if not self.bot or not chat_id:
+            return 0
+        msg_ids = self.sent_message_ids.pop(chat_id, [])
+        deleted = 0
+        for mid in msg_ids:
+            try:
+                await self.bot.delete_message(chat_id=chat_id, message_id=mid)
+                deleted += 1
+            except Exception:
+                pass  # message already deleted or too old (>48h)
+        return deleted
+
+
+# Shared notifier instance for tracking message IDs across commands
+_notifier: TelegramNotifier | None = None
+
+
+def _get_notifier() -> TelegramNotifier:
+    global _notifier
+    if _notifier is None:
+        _notifier = TelegramNotifier()
+    return _notifier
+
 
 # --- Commandes ---
 
@@ -203,6 +236,7 @@ async def cmd_demarrer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/approuver 1,3,5 - Approuver des annonces\n"
         "/rejeter 2,4 - Rejeter des annonces\n"
         "/details 3 - Details d'une annonce\n"
+        "/effacer - Supprimer les messages du bot\n"
         "/intervalle 4h - Changer la frequence\n"
         "/statut - Etat du pipeline"
     )
@@ -263,7 +297,7 @@ async def cmd_chercher(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
 
         # Auto-send top listings with photos
-        notifier = TelegramNotifier()
+        notifier = _get_notifier()
         await notifier.notify_shortlist(approved)
 
     except Exception as e:
@@ -281,7 +315,7 @@ async def cmd_liste(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         data = json.loads(files[0].read_text(encoding="utf-8"))
         listings = [ScoredListing.model_validate(d) for d in data]
-        notifier = TelegramNotifier()
+        notifier = _get_notifier()
         await notifier.notify_shortlist(listings)
     except Exception as e:
         logger.error(f"Erreur /liste: {e}")
@@ -400,6 +434,14 @@ async def cmd_statut(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     )
 
 
+async def cmd_effacer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Supprimer les messages envoyes par le bot."""
+    notifier = _get_notifier()
+    chat_id = str(update.effective_chat.id)
+    deleted = await notifier.delete_sent_messages(chat_id)
+    await update.message.reply_text(f"{deleted} messages supprimes.")
+
+
 async def post_init(app: Application) -> None:
     from telegram import BotCommand
     await app.bot.set_my_commands([
@@ -408,6 +450,7 @@ async def post_init(app: Application) -> None:
         BotCommand("approuver", "Approuver des annonces"),
         BotCommand("rejeter", "Rejeter des annonces"),
         BotCommand("details", "Details d'une annonce"),
+        BotCommand("effacer", "Supprimer les messages du bot"),
         BotCommand("intervalle", "Changer la frequence"),
         BotCommand("statut", "Etat du pipeline"),
     ])
@@ -422,6 +465,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("approuver", cmd_approuver))
     app.add_handler(CommandHandler("rejeter", cmd_rejeter))
     app.add_handler(CommandHandler("details", cmd_details))
+    app.add_handler(CommandHandler("effacer", cmd_effacer))
     app.add_handler(CommandHandler("intervalle", cmd_intervalle))
     app.add_handler(CommandHandler("statut", cmd_statut))
 

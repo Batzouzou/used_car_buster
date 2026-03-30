@@ -105,7 +105,7 @@ class LLMClient:
                 "temperature": 0.1,
                 "max_tokens": 16384,
             },
-            timeout=300,
+            timeout=900,
         )
         resp.raise_for_status()
         data = resp.json()

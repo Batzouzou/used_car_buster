@@ -227,7 +227,7 @@ class TelegramNotifier:
             except Exception:
                 pass
 
-    async def notify_shortlist(self, listings: list[ScoredListing], max_results: int = 5) -> None:
+    async def notify_shortlist(self, listings: list[ScoredListing], max_results: int = 10) -> None:
         """Send top listings (score >= SCORE_THRESHOLD, max 10) to Jerome with full analysis."""
         top = sorted(
             [l for l in listings if l.score >= SCORE_THRESHOLD],
@@ -293,7 +293,7 @@ async def cmd_demarrer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "🔍 chercher\n"
         "→ Lance la recherche sur LeBonCoin + AutoScout24\n"
-        "→ Vous recevez le TOP 5 avec photos 📸\n\n"
+        "→ Vous recevez le TOP 10 avec photos 📸\n\n"
         "📋 liste\n"
         "→ Renvoie les dernieres annonces trouvees\n\n"
         "🔎 details 3\n"

@@ -1,7 +1,11 @@
 import os
 import pytest
-from unittest.mock import patch, MagicMock
-from scraper_lacentrale import parse_lacentrale_nextdata, scrape_lacentrale, geocode_city
+from unittest.mock import patch, MagicMock, PropertyMock
+from scraper_lacentrale import (
+    parse_lacentrale_nextdata, scrape_lacentrale, geocode_city,
+    _is_block_page, _human_wiggle, _human_scroll,
+    _parse_mileage, _parse_price,
+)
 from models import RawListing
 
 FIXTURE_PATH = os.path.join(os.path.dirname(__file__), "fixtures", "lacentrale_sample.html")
@@ -25,20 +29,98 @@ def test_parse_nextdata_empty():
     listings = parse_lacentrale_nextdata(html)
     assert listings == []
 
-@patch("scraper_lacentrale.requests.Session")
-@patch("scraper_lacentrale.geocode_city")
-def test_scrape_lacentrale(mock_geocode, mock_session_cls):
-    mock_geocode.return_value = (48.79, 2.46)
-    mock_session = MagicMock()
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.text = load_fixture()
-    mock_resp.raise_for_status = MagicMock()
-    mock_session.get.return_value = mock_resp
-    mock_session_cls.return_value = mock_session
 
-    listings = scrape_lacentrale()
+def _make_mock_page(html_content, nextdata_len=100):
+    """Create a mock Playwright page that returns given HTML."""
+    page = MagicMock()
+    page.content.return_value = html_content
+    page.evaluate.return_value = nextdata_len
+    page.goto.return_value = None
+    page.mouse = MagicMock()
+    page.close.return_value = None
+    return page
+
+
+PW_PATCH = "playwright.sync_api.sync_playwright"
+
+
+@patch("scraper_lacentrale._polite_sleep")
+@patch("scraper_lacentrale._human_scroll")
+@patch("scraper_lacentrale._human_wiggle")
+def test_scrape_lacentrale_cdp(mock_wiggle, mock_scroll, mock_sleep):
+    """scrape_lacentrale connects via CDP and extracts listings."""
+    fixture_html = load_fixture()
+
+    mock_page = _make_mock_page(fixture_html)
+    mock_context = MagicMock()
+    mock_context.new_page.return_value = mock_page
+    mock_browser = MagicMock()
+    mock_browser.contexts = [mock_context]
+
+    mock_pw_instance = MagicMock()
+    mock_pw_instance.chromium.connect_over_cdp.return_value = mock_browser
+
+    mock_pw_cm = MagicMock()
+    mock_pw_cm.__enter__ = MagicMock(return_value=mock_pw_instance)
+    mock_pw_cm.__exit__ = MagicMock(return_value=False)
+
+    with patch(PW_PATCH, return_value=mock_pw_cm):
+        listings = scrape_lacentrale()
+
     assert len(listings) >= 1
+    assert listings[0].platform == "lacentrale"
+    mock_pw_instance.chromium.connect_over_cdp.assert_called_once()
+    mock_page.close.assert_called_once()
+
+
+@patch("scraper_lacentrale._polite_sleep")
+def test_scrape_lacentrale_cdp_not_available(mock_sleep):
+    """Chrome CDP not running → empty list, no crash."""
+    mock_pw_instance = MagicMock()
+    mock_pw_instance.chromium.connect_over_cdp.side_effect = ConnectionError(
+        "connect ECONNREFUSED 127.0.0.1:9222"
+    )
+    mock_pw_cm = MagicMock()
+    mock_pw_cm.__enter__ = MagicMock(return_value=mock_pw_instance)
+    mock_pw_cm.__exit__ = MagicMock(return_value=False)
+
+    with patch(PW_PATCH, return_value=mock_pw_cm):
+        listings = scrape_lacentrale()
+        assert listings == []
+
+
+@patch("scraper_lacentrale._polite_sleep")
+@patch("scraper_lacentrale._human_scroll")
+@patch("scraper_lacentrale._human_wiggle")
+def test_scrape_lacentrale_block_detected(mock_wiggle, mock_scroll, mock_sleep):
+    """DataDome block page → empty list."""
+    block_html = '<html><body><p>captcha</p><script>datadome</script></body></html>'
+    mock_page = _make_mock_page(block_html, nextdata_len=0)
+    mock_context = MagicMock()
+    mock_context.new_page.return_value = mock_page
+    mock_browser = MagicMock()
+    mock_browser.contexts = [mock_context]
+
+    mock_pw_instance = MagicMock()
+    mock_pw_instance.chromium.connect_over_cdp.return_value = mock_browser
+    mock_pw_cm = MagicMock()
+    mock_pw_cm.__enter__ = MagicMock(return_value=mock_pw_instance)
+    mock_pw_cm.__exit__ = MagicMock(return_value=False)
+
+    with patch(PW_PATCH, return_value=mock_pw_cm):
+        listings = scrape_lacentrale()
+
+    assert listings == []
+    mock_page.close.assert_called_once()
+
+
+def test_is_block_page():
+    assert _is_block_page('<html>captcha challenge</html>') is True
+    assert _is_block_page('<html>datadome protected</html>') is True
+    assert _is_block_page('<html>Please enable JS</html>') is True
+    assert _is_block_page('<html><body>normal page</body></html>') is False
+    assert _is_block_page('') is False
+    assert _is_block_page(None) is False
 
 
 def test_geocode_city_cache_hit():
@@ -147,30 +229,91 @@ def test_geocode_city_nominatim_writes_disk_cache(tmp_path):
         assert "newcity" in data
 
 
-@patch("scraper_lacentrale.requests.Session")
-def test_scrape_lacentrale_exception(mock_session_cls):
-    """scrape_lacentrale with network exception → empty list."""
-    mock_session = MagicMock()
-    mock_session.get.side_effect = ConnectionError("DNS failed")
-    mock_session_cls.return_value = mock_session
-    listings = scrape_lacentrale()
-    assert listings == []
 
 
-def test_parse_nextdata_listing_parse_exception():
-    """Listing with malformed data inside valid __NEXT_DATA__ → skipped."""
+def test_parse_nextdata_no_cards():
+    """Valid __NEXT_DATA__ with HTML content but no vehicle cards → empty list."""
     import json
     nextdata = {
         "props": {
             "pageProps": {
-                "searchData": {
-                    "results": [
-                        {"id": None, "price": "not_a_number"}  # will cause exception
-                    ]
+                "data": {
+                    "content": "<div>No results found</div>"
                 }
             }
         }
     }
     html = f'<html><body><script id="__NEXT_DATA__" type="application/json">{json.dumps(nextdata)}</script></body></html>'
     listings = parse_lacentrale_nextdata(html)
-    assert listings == []  # malformed item skipped
+    assert listings == []
+
+
+def test_parse_nextdata_empty_content():
+    """Valid __NEXT_DATA__ with empty content → empty list."""
+    import json
+    nextdata = {"props": {"pageProps": {"data": {"content": ""}}}}
+    html = f'<html><body><script id="__NEXT_DATA__" type="application/json">{json.dumps(nextdata)}</script></body></html>'
+    listings = parse_lacentrale_nextdata(html)
+    assert listings == []
+
+
+def test_parse_mileage():
+    assert _parse_mileage("63 000 km") == 63000
+    assert _parse_mileage("97 900 km") == 97900
+    assert _parse_mileage("150000 km") == 150000
+    assert _parse_mileage("no mileage") is None
+    assert _parse_mileage("") is None
+
+
+def test_parse_price():
+    assert _parse_price("6 280 €") == 6280
+    assert _parse_price("2 900 €") == 2900
+    assert _parse_price("11 990 €") == 11990
+    assert _parse_price("") == 0
+
+
+def test_parse_nextdata_dedup():
+    """Duplicate cards (same href) are deduplicated."""
+    import json
+    card = '''<a href="/auto-occasion-annonce-12345.html" data-testid="vehicleCardV2">
+        <span class="vehiclecardV2_title__x">TOYOTA IQ</span>
+        <span class="vehiclecardV2_vehiclePrice__x">3000 €</span>
+    </a>'''
+    nextdata = {"props": {"pageProps": {"data": {"content": card + card}}}}
+    html = f'<html><body><script id="__NEXT_DATA__" type="application/json">{json.dumps(nextdata)}</script></body></html>'
+    listings = parse_lacentrale_nextdata(html)
+    assert len(listings) == 1
+
+
+def test_parse_nextdata_private_seller():
+    """Card without seller element → seller_type = private."""
+    import json
+    card = '''<a href="/auto-occasion-annonce-99999.html" data-testid="vehicleCardV2">
+        <span class="vehiclecardV2_title__x">TOYOTA IQ</span>
+        <span class="vehiclecardV2_vehiclePrice__x">2500 €</span>
+        <span class="vehiclecardV2_locationText__x">75</span>
+    </a>'''
+    nextdata = {"props": {"pageProps": {"data": {"content": card}}}}
+    html = f'<html><body><script id="__NEXT_DATA__" type="application/json">{json.dumps(nextdata)}</script></body></html>'
+    listings = parse_lacentrale_nextdata(html)
+    assert len(listings) == 1
+    assert listings[0].seller_type == "private"
+    assert listings[0].department == "75"
+
+
+def test_human_wiggle():
+    """human_wiggle calls mouse.move without crashing."""
+    page = MagicMock()
+    page.mouse = MagicMock()
+    with patch("scraper_lacentrale.time.sleep"):
+        _human_wiggle(page)
+    page.mouse.move.assert_called_once()
+
+
+def test_human_scroll():
+    """human_scroll calls mouse.wheel the specified number of times."""
+    page = MagicMock()
+    page.mouse = MagicMock()
+    with patch("scraper_lacentrale.time.sleep"):
+        _human_scroll(page, times=3)
+    assert page.mouse.wheel.call_count == 3

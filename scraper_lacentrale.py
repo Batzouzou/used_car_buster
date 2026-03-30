@@ -19,6 +19,7 @@ from config import SEARCH_CRITERIA, OUTPUT_DIR
 logger = logging.getLogger(__name__)
 
 LC_BASE_URL = "https://www.lacentrale.fr/listing"
+LC_MAX_PAGES = 4
 CDP_URL = "http://127.0.0.1:9222"
 
 CITY_COORDS_CACHE = {
@@ -262,9 +263,10 @@ def scrape_lacentrale() -> list:
     make = SEARCH_CRITERIA["make"].lower()
     model = SEARCH_CRITERIA["model"].lower()
     # Note: &gearbox=Automatique breaks SSR (empty results), so we post-filter
-    url = f"{LC_BASE_URL}?makesModelsCommercialNames={make}%3A{model}"
+    base_url = f"{LC_BASE_URL}?makesModelsCommercialNames={make}%3A{model}"
 
     all_listings = []
+    seen_ids = set()
 
     try:
         with sync_playwright() as pw:
@@ -273,39 +275,57 @@ def scrape_lacentrale() -> list:
             page = context.new_page()
 
             try:
-                # Navigate with human-like behavior
-                _polite_sleep(1.0, 2.5)
-                page.goto(url, wait_until="networkidle", timeout=30000)
-                _polite_sleep(2.0, 4.0)
+                for page_num in range(1, LC_MAX_PAGES + 1):
+                    url = base_url if page_num == 1 else f"{base_url}&page={page_num}"
 
-                # Human-like interactions
-                _human_wiggle(page)
-                _human_scroll(page, times=2)
-                _polite_sleep(1.0, 2.0)
+                    _polite_sleep(1.0, 2.5)
+                    page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                    _polite_sleep(3.0, 5.0)
 
-                html = page.content()
+                    _human_wiggle(page)
+                    _human_scroll(page, times=2)
+                    _polite_sleep(1.0, 2.0)
 
-                if _is_block_page(html):
-                    logger.warning("La Centrale: DataDome block detected, skipping this run")
-                    return []
+                    html = page.content()
 
-                # Extract __NEXT_DATA__
-                nextdata_len = page.evaluate(
-                    'document.getElementById("__NEXT_DATA__")?.textContent?.length || 0'
-                )
-                if nextdata_len > 0:
+                    if _is_block_page(html):
+                        logger.warning("La Centrale: DataDome block detected, stopping pagination")
+                        break
+
+                    nextdata_len = page.evaluate(
+                        'document.getElementById("__NEXT_DATA__")?.textContent?.length || 0'
+                    )
+                    if nextdata_len == 0:
+                        logger.info(f"La Centrale: no __NEXT_DATA__ on page {page_num}, done")
+                        break
+
                     raw = parse_lacentrale_nextdata(html)
-                    target_trans = SEARCH_CRITERIA.get("transmission", "").lower()
-                    if target_trans == "automatic":
-                        all_listings = [l for l in raw if l.transmission == "auto"]
-                    else:
-                        all_listings = raw
+                    if not raw:
+                        logger.info(f"La Centrale: 0 listings on page {page_num}, done")
+                        break
+
+                    new_count = 0
+                    for listing in raw:
+                        if listing.id not in seen_ids:
+                            seen_ids.add(listing.id)
+                            all_listings.append(listing)
+                            new_count += 1
+
+                    logger.info(f"La Centrale page {page_num}: {len(raw)} cards, {new_count} new")
+
+                    if new_count == 0:
+                        break
+
+                # Post-filter by transmission
+                target_trans = SEARCH_CRITERIA.get("transmission", "").lower()
+                if target_trans == "automatic":
+                    before = len(all_listings)
+                    all_listings = [l for l in all_listings if l.transmission == "auto"]
                     logger.info(
-                        f"La Centrale: {len(raw)} total, {len(all_listings)} after "
-                        f"transmission filter via CDP"
+                        f"La Centrale: {before} total, {len(all_listings)} automatic via CDP"
                     )
                 else:
-                    logger.warning("La Centrale: no __NEXT_DATA__ found on page")
+                    logger.info(f"La Centrale: {len(all_listings)} listings via CDP")
 
             finally:
                 page.close()

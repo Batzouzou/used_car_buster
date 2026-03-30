@@ -131,7 +131,7 @@ def format_listing_notification(listing: ScoredListing, number: int) -> str:
         alertes = "\n!! " + ", ".join(listing.red_flags[:3])
     summary = ""
     if getattr(listing, "summary_fr", ""):
-        summary = f"\n\n{listing.summary_fr}"
+        summary = f"\n\n🤖 Analyse IA :\n{listing.summary_fr}"
 
     platform_tag = {"leboncoin": "LBC", "autoscout24": "AutoScout", "lacentrale": "LaCentrale", "leparking": "LeParking"}.get(listing.platform, listing.platform)
 

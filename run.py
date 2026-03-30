@@ -234,11 +234,14 @@ def main(argv: list[str] | None = None):
         if removed:
             print(f"  Dedup: removed {removed} duplicates")
         output = Path(OUTPUT_DIR) / f"raw_listings_{datetime.now().strftime('%Y%m%d')}.json"
-        output.write_text(
-            json.dumps([l.model_dump() for l in deduped], ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        print(f"Saved {len(deduped)} listings to {output}")
+        if not deduped and output.exists() and output.stat().st_size > 10:
+            print("Scrape returned 0 listings — keeping existing file intact")
+        else:
+            output.write_text(
+                json.dumps([l.model_dump() for l in deduped], ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(f"Saved {len(deduped)} listings to {output}")
 
         # Generate HTML viewer with photos
         html_path = Path(OUTPUT_DIR) / f"listings_{datetime.now().strftime('%Y%m%d')}.html"

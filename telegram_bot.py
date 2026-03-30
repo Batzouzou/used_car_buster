@@ -235,7 +235,7 @@ class TelegramNotifier:
         )[:max_results]
 
         if not top:
-            await self.send_to_jerome("Aucune annonce au-dessus de 50/100 cette fois.")
+            logger.info("No listings above score threshold, skipping Telegram notification")
             return
 
         header = (

@@ -465,9 +465,8 @@ async def test_notifier_notify_shortlist_filters_by_score():
 
 @pytest.mark.asyncio
 async def test_notifier_notify_shortlist_empty():
+    """Empty shortlist → silent (no Telegram message sent)."""
     notifier = TelegramNotifier(token="fake", friend_chat_id="123", jerome_chat_id="456")
     notifier.bot = AsyncMock()
     await notifier.notify_shortlist([])
-    notifier.bot.send_message.assert_called_once()
-    text = notifier.bot.send_message.call_args.kwargs.get("text", notifier.bot.send_message.call_args[1].get("text", ""))
-    assert "Aucune" in text
+    notifier.bot.send_message.assert_not_called()
